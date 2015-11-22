@@ -765,10 +765,22 @@ class Player(object):
             >>> decklist_text, mydiff = testdata_deck()
             >>> deck = load_list(decklist_text, mydiff)
             >>> player = Player(deck)
-            >>> rng = np.random.RandomState(0)
+            >>> rng = np.random.RandomState(3)
             >>> player.reset(rng=rng)
             >>> player.initial_draw()
             >>> player.print_state()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.draw_step()
+            >>> player.print_state()
+
             >>> # ----
             >>> player.play_land()
             >>> player.print_state()
@@ -782,9 +794,24 @@ class Player(object):
             if ut.is_superset(c.types, ['Land'])
         ]
 
+        nonland_in_hand = [
+            c for c in player.hand
+            if not ut.is_superset(c.types, ['Land'])
+        ]
+
         def solve_current_hand():
 
-            def castable():
+            land_list = land_in_hand
+            nonland_list = nonland_in_hand
+
+            [land.mana_source_stats()[0] for land in land_list]
+            costs = [nonland.mana_cost for nonland in nonland_list]
+
+            combos = list(ut.iprod(*[land.mana_source_stats()[0] for land in land_list]))
+            for combo in combos:
+                pass
+
+            def castable(nonland_in_hand):
                 pass
 
             pass
