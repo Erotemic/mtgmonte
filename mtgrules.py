@@ -56,7 +56,7 @@ class RuleHeuristics(object):
             cls._fill('landtypes') +
             ' card and put it onto the battlefield' +
             ut.named_field('istapped', ' tapped') +
-            '?. Then shuffle your library.')
+            '?')
         match = re.search(fetch_regex, block)
         if match is not None:
             groupdict = match.groupdict()

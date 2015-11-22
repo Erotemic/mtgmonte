@@ -21,6 +21,7 @@ import mtgrules
 from mtglib.card_renderer import Card
 #from six.moves import
 ut.util_cache.VERBOSE_CACHE = False
+print, rrr, profile = ut.inject2(__name__, '[mtgmonte]')
 
 
 def testdata_deck():
@@ -171,17 +172,21 @@ class Card2(Card):
     """
 
     def __init__(card, *args, **kwargs):
-        super(Card2, card).__init(*args, **kwargs)
         card.state = []
+        super(Card2, card).__init(*args, **kwargs)
 
     def __repr__(card):
         return '<' + card.__str__() + '>'
 
     def __str__(card):
+        if not hasattr(card, 'state'):
+            card.state = []
         if card.mana_cost:
             body = card.name + ' (' + card.mana_cost + ')'
         else:
             body = card.name
+        if len(card.state) > 0:
+            body += ' ' + ut.repr2(card.state)
         return body
 
     def __getstate__(card):
@@ -211,8 +216,7 @@ class Card2(Card):
 
     @property
     def heuristic_infodict(card):
-        basic_infodict = card.basic_infodict
-        infodict = ut.dict_subset(basic_infodict, ['name', 'mana_cost'])
+        infodict = ut.dict_subset(card.__dict__, ['name', 'mana_cost'])
         heuristic_types, heuristic_subtypes = card.get_heuristic_info()
         infodict['heuristic_types'] = heuristic_types
         return infodict
@@ -285,10 +289,23 @@ class Card2(Card):
                 costs_, effects_ = block.split(':')
                 costs = [_.strip() for _ in costs_.split(',')]
                 effects = [_.strip() for _ in effects_.split('.')]
+
+                def tolkenize_effect(effect):
+                    if effect.startswith('Then '):
+                        effect = effect.replace('Then ', '')
+                    return effect.strip()
+
+                # Tolkenize effect language
+                effects = [tolkenize_effect(effect) for effect in effects]
+
+                # Remove empty sections
+                effects = [effect for effect in effects if effect]
+
                 if any([RuleHeuristics.is_mana_ability(_) for _ in effects]):
                     type_ = 'mana'
                 else:
                     type_ = 'activated'
+
                 ability['type'] = type_
                 ability['costs'] = costs
                 ability['effects'] = effects
@@ -296,9 +313,28 @@ class Card2(Card):
                 ability['type'] = 'PARSE ERROR'
                 ability['text'] = block
             ability_list.append(ability)
-        print(ut.repr3(ability_list))
+        return ability_list
+        #print(ut.repr3(ability_list))
 
-    def get_nonmana_abilities():
+    def get_etb_modifiers(card, player=None):
+        if 'tap' in card.heuristic_types:
+            return ['tapped']
+        if 'tango' in card.heuristic_types:
+            if player is None:
+                return ['tapped']
+            else:
+                basic_lands_under_control = [
+                    c for c in player.bfield
+                    if ut.is_superset(c.types, ['Basic', 'Land'])
+                ]
+                if len(basic_lands_under_control) >= 2:
+                    return []
+                else:
+                    return ['tapped']
+        else:
+            return []
+
+    def get_nonmana_abilities(card):
         pass
 
     def mana_source_stats(card, deck=None):
@@ -460,132 +496,6 @@ class CardGroup(object):
         return ut.compress(group.cards, flags)
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
-class Player(object):
-    """
-    An agent
-    player = Player()
-    """
-    def __init__(player, deck):
-        player.deck = deck
-        player.hand = []
-        player.bfield = []
-        player.graveyard = []
-        player.exiled = []
-
-    def untap_step(player):
-        max_land_drops = 1
-        player.land_drops_left = max_land_drops
-
-    def draw_step(player):
-        card = player.deck.draw_card()
-        player.hand.append(card)
-
-    def initial_draw(player):
-        player.hand.extend(player.deck.draw_hand())
-
-    def reset(player):
-        player.deck.reset()
-        player.hand = []
-        player.bfield = []
-        player.graveyard = []
-        player.exiled = []
-
-    def infodict(player):
-        infodict = {
-            'library_size': len(player.deck),
-            'hand_size': len(player.hand),
-            'bfield_size': len(player.bfield),
-            'graveyard_size': len(player.graveyard),
-            'exiled_size': len(player.exiled),
-        }
-        return infodict
-
-    def print_state(player):
-        print(ut.repr3(player.infodict2(), nl=2))
-
-    def infodict2(player):
-        infodict = {
-            'library_size': len(player.deck),
-            'hand_size': len(player.hand),
-            'bfield_size': len(player.bfield),
-            'graveyard_size': len(player.graveyard),
-            'exiled_size': len(player.exiled),
-            'hand': CardGroup(player.hand).infohist,
-            'bfield': CardGroup(player.bfield).infohist,
-        }
-        return infodict
-
-
-def goldfish(deck):
-
-    player = Player(deck)
-    player.reset()
-    player.rrr()
-    #print(ut.repr2(player.infodict()))
-    #CardGroup(player.hand)
-    #group = CardGroup(deck.card_list)
-    #group = CardGroup(player.hand)
-
-    print('Starting Goldfish')
-    turn = 0
-
-    def get_resources():
-        resources = {}
-        resources['land_drops_left'] = player.land_drops_left
-        #group = CardGroup(player.bfield)
-        untapped_lands = [
-            c for c in player.bfield
-            if ut.is_superset(c.types, ['Land']) and 'tapped' not in c.state]
-        mana_potential = [c.mana_source_stats() for c in untapped_lands]
-        resources['mana_potential'] = mana_potential
-
-    def play_land():
-        land_in_hand = [
-            c for c in player.hand
-            if ut.is_superset(c.types, ['Land'])]
-
-        if len(land_in_hand) > 0:
-
-            def get_land_value(land, turn):
-                if turn == 0:
-                    if 'tap' in land.heuristic_types:
-                        return 2
-                    else:
-                        return 1
-
-            value_list = [get_land_value(land, turn) for land in land_in_hand]
-            idx = ut.list_argmax(value_list)
-            land = land_in_hand[idx]
-            # Get land with maximum play value
-            player.hand.remove(land)
-            player.bfield.append(land)
-
-    def main_phase_play():
-        player.print_state()
-        group = CardGroup(player.hand)
-        valid_cards = group.get_where('cmc', '<=', 0)
-
-        # choose play
-        if len(valid_cards) > 0:
-            card = valid_cards[0]
-            play_land(card)
-            # LEFT OFF HERE
-
-    player.initial_draw()
-
-    player.untap_step()
-
-    player.print_state()  #
-
-    play_land()
-
-    player.print_state()  #
-
-    print(ut.repr3([card.heuristic_infodict for card in player.hand]))
-    pass
-
-
 def load_list(decklist_text, mydiff):
     lines = decklist_text.split('\n')
     cardname_list = ut.flatten([
@@ -681,16 +591,346 @@ def inspect_deck(deck):
     #cardlist.render()
 
 
+@six.add_metaclass(ut.ReloadingMetaclass)
+class Player(object):
+    """
+    An agent
+    player = Player()
+    """
+    def __init__(player, deck):
+        player.deck = deck
+        player.hand = []
+        player.bfield = []
+        player.graveyard = []
+        player.exiled = []
+        player.turn = 0
+        player.life = 20
+        player.verbose = 2
+
+    def infodict(player):
+        infodict = {
+            'library_size': len(player.deck),
+            'hand_size': len(player.hand),
+            'bfield_size': len(player.bfield),
+            'graveyard_size': len(player.graveyard),
+            'exiled_size': len(player.exiled),
+        }
+        return infodict
+
+    def infodict2(player):
+        infodict = {
+            'library_size': len(player.deck),
+            'hand_size': len(player.hand),
+            'bfield_size': len(player.bfield),
+            'graveyard_size': len(player.graveyard),
+            'exiled_size': len(player.exiled),
+            'hand': CardGroup(player.hand).infohist,
+            'bfield': CardGroup(player.bfield).infohist,
+            'turn': player.turn,
+        }
+        return infodict
+
+    def print_state(player):
+        statestr = ut.repr3(player.infodict2(), nl=2)
+        print(statestr)
+
+    def reset(player):
+        player.deck.reset()
+        player.turn = 0
+        player.life = 20
+        player.hand = []
+        player.bfield = []
+        player.graveyard = []
+        player.exiled = []
+        for card in player.deck.card_list:
+            card.state = []
+
+    def initial_draw(player):
+        if player.verbose >= 1:
+            print('+ --- Initial Draw')
+        player.hand.extend(player.deck.draw_hand())
+        if player.verbose >= 3:
+            player.print_state()
+
+    def untap_step(player):
+        player.turn += 1
+        if player.verbose >= 1:
+            print('+ --- Untap Step')
+        max_land_drops = 1
+        player.land_drops_left = max_land_drops
+        for card in player.bfield:
+            if 'tapped' in card.state:
+                player.untap_card(card)
+        if player.verbose >= 3:
+            player.print_state()
+
+    def upkeep_step(player):
+        if player.verbose >= 1:
+            print('+ --- Upkeep Step')
+        if player.verbose >= 3:
+            player.print_state()
+
+    def draw_step(player):
+        if player.verbose >= 1:
+            print('+ --- Draw Step')
+        card = player.deck.draw_card()
+        player.hand.extend(card)
+        if player.verbose >= 3:
+            player.print_state()
+
+    def put_on_battlefield(player, card, modifiers=None):
+        # CARD ENTERS BATTLEFIELD
+        modifiers_ = card.get_etb_modifiers(player=player)
+        if modifiers is None:
+            modifiers = []
+        modifiers = modifiers_ + modifiers
+        if player.verbose >= 1:
+            print('%s enters the battlefield, modifiers=%r' % (card, modifiers))
+        card.state.extend(modifiers)
+        player.bfield.append(card)
+
+    def remove_from_battlefield(player, card):
+        if player.verbose >= 1:
+            print('%s leaves the battlefield' % (card,))
+        player.bfield.remove(card)
+
+    def put_in_graveyard(player, card):
+        if player.verbose >= 1:
+            print('%s enters the graveyard' % (card,))
+        # CARD ENTERS BATTLEFIELD
+        player.graveyard.append(card)
+
+    def shuffle(player):
+        if player.verbose >= 1:
+            print('shuffling')
+        player.deck.shuffle()
+
+    def lose_life(player, num):
+        if player.verbose >= 1:
+            print('Losing %d life' % (num,))
+        player.life -= num
+
+    def tap_card(player, card):
+        if player.verbose >= 1:
+            print('Tapping ' + card.name)
+        card.state.append('tapped')
+
+    def untap_card(player, card):
+        if player.verbose >= 1:
+            print('Untapping ' + card.name)
+        card.state.remove('tapped')
+
+    def sacrifice_card(player, card):
+        print('Sacrificing ' + card.name)
+        with ut.Indenter('     '):
+            player.remove_from_battlefield(card)
+            player.put_in_graveyard(card)
+
+    def play_land(player):
+        if player.verbose >= 1:
+            print('+ --- Play Land')
+
+        # Choose best land to play
+        land_in_hand = [
+            c for c in player.hand
+            if ut.is_superset(c.types, ['Land'])
+        ]
+
+        if len(land_in_hand) > 0:
+
+            # Need to formulate as a sequencing problem
+            # Find the sequence of land drops that maximizes mana efficiency
+            # We temporarilly ignore the issue of when playing a card effects
+            # mana in the subsequent turns.
+            # Mana Sources = {B}, {R}, {W,G}T, {G}
+            # Cards = [R], [RB], [W], [GG], [2B]
+
+            def assign_choice_value(player, decision, choices):
+                value_list = []
+                if decision == 'land-drop':
+                    for card in choices:
+                        if player.turn == 1:
+                            if 'tap' in card.heuristic_types:
+                                value_list += [2]
+                            else:
+                                value_list += [1]
+                        else:
+                            value_list += [1]
+                return value_list
+
+            value_list = assign_choice_value(player, 'land-drop',  land_in_hand)
+            print('value_list = %r' % (value_list,))
+            idx = ut.list_argmax(value_list)
+            card = land_in_hand[idx]
+            # Get land with maximum play value
+            print('played %s' % (card,))
+            player.hand.remove(card)
+            player.put_on_battlefield(card)
+        else:
+            if player.verbose >= 2:
+                print('Mised land drop')
+
+        if player.verbose >= 3:
+            player.print_state()
+
+
+def get_fetch_search_targets(effect, card, player):
+    RuleHeuristics = mtgrules.RuleHeuristics
+    valid_types = RuleHeuristics.get_fetched_lands(effect, card)
+
+    targets = []
+    for type_ in valid_types:
+        for card in player.deck.library:
+            if type_ in card.subtypes:
+                targets += [card]
+    return targets
+
+
+def get_valid_targets(effects, card, player):
+    valid_targets_list = []
+    for effect in effects:
+        if effect.startswith('Search your'):
+            valid_targets_list += [get_fetch_search_targets(effect, card, player)]
+        elif effect == 'shuffle your library':
+            valid_targets_list += [None]
+    return valid_targets_list
+
+
+def choose_targets(effects, card, player, valid_targets_list):
+    targets_list = []
+    for valid_targets in valid_targets_list:
+        if valid_targets is None:
+            targets_list += [valid_targets]
+        else:
+            # TODO: Intelligent Choice
+            targets_list += [valid_targets[0]]
+    return targets_list
+
+
+def get_effects(player, effects, targets_list):
+    for effect, targets in zip(effects, targets_list):
+        if effect.startswith('Search your library for'):
+            player.deck.library.remove(targets)
+            if effect.endswith('and put it onto the battlefield'):
+                player.put_on_battlefield(targets)
+            elif effect.endswith('and put it onto the battlefield tapped'):
+                player.put_on_battlefield(targets, ['tapped'])
+        elif effect == 'shuffle your library':
+            player.shuffle()
+        else:
+            raise NotImplementedError('UNKNOWN EFFECT: ' + effect)
+
+
+def pay_costs(player, card, costs):
+    for cost in costs:
+        match = re.search(r'Pay (?P<num>\d+) life', cost)
+        if cost == '{T}':
+            player.tap_card(card)
+        elif match:
+            groupdict = match.groupdict()
+            num = float(groupdict['num'])
+            player.lose_life(num)
+        elif cost == 'Sacrifice ' + card.name:
+            player.sacrifice_card(card)
+        else:
+            raise NotImplementedError('UNKNOWN COST: ' + cost)
+
+
+def goldfish(deck):
+
+    player = Player(deck)
+    #print(ut.repr2(player.infodict()))
+    #CardGroup(player.hand)
+    #group = CardGroup(deck.card_list)
+    #group = CardGroup(player.hand)
+
+    print('Starting Goldfish')
+
+    def get_resources():
+        resources = {}
+        resources['land_drops_left'] = player.land_drops_left
+        #group = CardGroup(player.bfield)
+        untapped_lands = [
+            c for c in player.bfield
+            if ut.is_superset(c.types, ['Land']) and 'tapped' not in c.state]
+        mana_potential = [c.mana_source_stats() for c in untapped_lands]
+        resources['mana_potential'] = mana_potential
+        resources['life'] = 20
+
+    def activate_ability(player, card, ability):
+        costs = ability['costs']
+        effects = ability['effects']
+
+        valid_targets_list = get_valid_targets(effects, card, player)
+        targets_list = choose_targets(effects, card, player, valid_targets_list)
+
+        with ut.Indenter('    '):
+            pay_costs(player, card, costs)
+            get_effects(player, effects, targets_list)
+
+    #def main_phase_play():
+    #    player.print_state()
+    #    group = CardGroup(player.hand)
+    #    valid_cards = group.get_where('cmc', '<=', 0)
+
+    player.rrr(False)
+    player.deck.rrr(False)
+    for card in player.deck.card_list:
+        card.rrr(False)
+
+    player.reset()
+    player.initial_draw()
+
+    for turn in range(0, 4):
+
+        player.untap_step()
+
+        if turn > 0:
+            player.draw_step()
+        else:
+            print('+ --- Skip First Draw Phase')
+
+        player.play_land()
+
+        for card in player.bfield:
+            if 'fetch' in card.heuristic_types:
+                print('cracking fetchland ' + card.name)
+                ability = card.get_abilities()[0]
+                activate_ability(player, card, ability)
+
+        player.print_state()
+        print('END TURN\n')
+
+    print(ut.repr3([card.heuristic_infodict for card in player.hand]))
+    pass
+
+
+def main():
+    r"""
+    CommandLine:
+        python mtgmonte.py --exec-main
+        python -m mtgmonte --exec-main
+
+    Example:
+        >>> # SCRIPT
+        >>> from mtgmonte import *  # NOQA
+        >>> result = main()
+        >>> print(result)
+    """
+    decklist_text, mydiff = testdata_deck()
+    deck = load_list(decklist_text, mydiff)
+    inspect_deck(deck)
+    goldfish(deck)
+
+
 if __name__ == '__main__':
     """
     cd ~/code/mtgmonte
     >>> from mtgmonte import *  # NOQA
 
     """
-    decklist_text, mydiff = testdata_deck()
-    deck = load_list(decklist_text, mydiff)
-    inspect_deck(deck)
-    goldfish(deck)
+    #import mtgmonte
+    #mtgmonte.main()
 
 if __name__ == '__main__':
     r"""
@@ -699,7 +939,7 @@ if __name__ == '__main__':
         python -B %HOME%/code/mtgmonte/mtgmonte.py
         python -B %HOME%/code/mtgmonte/mtgmonte.py --allexamples
     """
-    #import multiprocessing
-    #multiprocessing.freeze_support()  # for win32
-    #import utool as ut  # NOQA
-    #ut.doctest_funcs()
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
