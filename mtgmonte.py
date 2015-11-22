@@ -428,16 +428,17 @@ class Deck(object):
     def initialize(deck):
         deck._library = deck.card_list[:]
 
-    def reset(deck):
+    def reset(deck, rng=None):
         deck.initialize()
-        deck.shuffle()
+        deck.shuffle(rng=rng)
 
     def sample_hand(deck):
         deck.reset()
         return deck.draw_hand()
 
-    def shuffle(deck):
-        rng = np.random
+    def shuffle(deck, rng=None):
+        if rng is None:
+            rng = np.random
         rng.shuffle(deck._library)
 
     def draw_card(deck, num=1):
@@ -620,8 +621,8 @@ class Player(object):
         player.life = 20
         player.verbose = 2
 
-    def reset(player):
-        player.deck.reset()
+    def reset(player, rng=None):
+        player.deck.reset(rng=rng)
         player.turn = 0
         player.life = 20
         player.hand = []
@@ -747,6 +748,31 @@ class Player(object):
             player.put_in_graveyard(card)
 
     def play_land(player):
+        r"""
+        Args:
+
+
+        Returns:
+            list: value_list
+
+        CommandLine:
+            cd ~/code/mtgmonte
+            python -m mtgmonte --exec-play_land
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from mtgmonte import *  # NOQA
+            >>> decklist_text, mydiff = testdata_deck()
+            >>> deck = load_list(decklist_text, mydiff)
+            >>> player = Player(deck)
+            >>> rng = np.random.RandomState(0)
+            >>> player.reset(rng=rng)
+            >>> player.initial_draw()
+            >>> player.print_state()
+            >>> # ----
+            >>> player.play_land()
+            >>> player.print_state()
+        """
         if player.verbose >= 1:
             print('+ --- Play Land')
 
@@ -755,6 +781,26 @@ class Player(object):
             c for c in player.hand
             if ut.is_superset(c.types, ['Land'])
         ]
+
+        def solve_current_hand():
+
+            def castable():
+                pass
+
+            pass
+
+        """
+        # Land choice is a dynamic programming algorithm
+        t = turn
+        l = land
+
+        value(t, l) - value of playing land l on turn t
+        hand(t) - lands in hand on turn t
+        #castable(l) - value of castable cards after playing land l
+        cast(l) - value of cast cards after playing land l
+
+        value(t) = value(t - 1) + max([value(l) for l in hand(t)])
+        """
 
         if len(land_in_hand) > 0:
 
