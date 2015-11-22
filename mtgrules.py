@@ -58,12 +58,19 @@ class RuleHeuristics(object):
             ut.named_field('istapped', ' tapped') +
             '?')
         match = re.search(fetch_regex, block)
+        valid_types = None
         if match is not None:
             groupdict = match.groupdict()
             landtypes = groupdict['landtypes'].split(' or ')
-            if groupdict['istapped']:
-                landtypes = ['tap-' + type_ for type_ in landtypes]
-            return landtypes
+            valid_types = [
+                [x.lower() for x in type_.split(' ')]
+                for type_ in landtypes
+            ]
+
+            #landtypes = groupdict['landtypes'].split(' or ')
+            #if groupdict['istapped']:
+            #    landtypes = ['tap-' + type_ for type_ in landtypes]
+        return valid_types
 
     @classmethod
     def is_tapland(cls, block, card):

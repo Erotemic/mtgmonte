@@ -1,4 +1,7 @@
 """
+References:
+    mtg forge http://mtgrares.blogspot.com/
+
 cd ~/code/mtgmonte
 
             if False:
@@ -498,8 +501,17 @@ class CardGroup(object):
 
 def load_list(decklist_text, mydiff):
     lines = decklist_text.split('\n')
+    line_regex = ut.named_field('num', r'\d+') + ' ' + ut.named_field('cardname', r'.*')
+    line_re = re.compile(line_regex)
+
+    def parse_line(line):
+        match = line_re.match(line)
+        groupdict_ = match.groupdict()
+        return [groupdict_['cardname']] * int(groupdict_['num'])
+
     cardname_list = ut.flatten([
-        [line[2:]] * int(line[0])
+        parse_line(line)
+        #[line[2:]] * int(line[0])
         for line in lines
         if (
             len(line) > 0 and not line.startswith('SB') and
@@ -599,6 +611,7 @@ class Player(object):
     """
     def __init__(player, deck):
         player.deck = deck
+        player.id_ = 0
         player.hand = []
         player.bfield = []
         player.graveyard = []
@@ -606,33 +619,6 @@ class Player(object):
         player.turn = 0
         player.life = 20
         player.verbose = 2
-
-    def infodict(player):
-        infodict = {
-            'library_size': len(player.deck),
-            'hand_size': len(player.hand),
-            'bfield_size': len(player.bfield),
-            'graveyard_size': len(player.graveyard),
-            'exiled_size': len(player.exiled),
-        }
-        return infodict
-
-    def infodict2(player):
-        infodict = {
-            'library_size': len(player.deck),
-            'hand_size': len(player.hand),
-            'bfield_size': len(player.bfield),
-            'graveyard_size': len(player.graveyard),
-            'exiled_size': len(player.exiled),
-            'hand': CardGroup(player.hand).infohist,
-            'bfield': CardGroup(player.bfield).infohist,
-            'turn': player.turn,
-        }
-        return infodict
-
-    def print_state(player):
-        statestr = ut.repr3(player.infodict2(), nl=2)
-        print(statestr)
 
     def reset(player):
         player.deck.reset()
@@ -645,6 +631,36 @@ class Player(object):
         for card in player.deck.card_list:
             card.state = []
 
+    def infodict(player):
+        infodict = {
+            'library_size': len(player.deck),
+            'hand_size': len(player.hand),
+            'bfield_size': len(player.bfield),
+            'graveyard_size': len(player.graveyard),
+            'exiled_size': len(player.exiled),
+        }
+        return infodict
+
+    def infodict2(player):
+        infodict = ut.odict([
+            #('id_', player.id_),
+            ('turn', player.turn),
+            ('life', player.life),
+            ('library_size', len(player.deck)),
+            ('hand_size', len(player.hand)),
+            ('bfield_size', len(player.bfield)),
+            ('graveyard_size', len(player.graveyard)),
+            ('exiled_size', len(player.exiled)),
+            ('hand', CardGroup(player.hand).infohist),
+            ('bfield', CardGroup(player.bfield).infohist),
+            ('graveyard', CardGroup(player.graveyard).infohist),
+        ])
+        return infodict
+
+    def print_state(player):
+        statestr = ut.repr3(player.infodict2(), nl=2)
+        print(statestr)
+
     def initial_draw(player):
         if player.verbose >= 1:
             print('+ --- Initial Draw')
@@ -655,7 +671,8 @@ class Player(object):
     def untap_step(player):
         player.turn += 1
         if player.verbose >= 1:
-            print('+ --- Untap Step')
+            print('+ --- Untap Step. Turn %r ' % (
+                player.turn,))
         max_land_drops = 1
         player.land_drops_left = max_land_drops
         for card in player.bfield:
@@ -674,6 +691,8 @@ class Player(object):
         if player.verbose >= 1:
             print('+ --- Draw Step')
         card = player.deck.draw_card()
+        if player.verbose >= 2:
+            print('Drew %s' % (','.join(map(str, card)),))
         player.hand.extend(card)
         if player.verbose >= 3:
             player.print_state()
@@ -693,6 +712,7 @@ class Player(object):
         if player.verbose >= 1:
             print('%s leaves the battlefield' % (card,))
         player.bfield.remove(card)
+        card.state = []
 
     def put_in_graveyard(player, card):
         if player.verbose >= 1:
@@ -759,7 +779,6 @@ class Player(object):
                 return value_list
 
             value_list = assign_choice_value(player, 'land-drop',  land_in_hand)
-            print('value_list = %r' % (value_list,))
             idx = ut.list_argmax(value_list)
             card = land_in_hand[idx]
             # Get land with maximum play value
@@ -776,52 +795,84 @@ class Player(object):
 
 def get_fetch_search_targets(effect, card, player):
     RuleHeuristics = mtgrules.RuleHeuristics
-    valid_types = RuleHeuristics.get_fetched_lands(effect, card)
-
+    valid_types = RuleHeuristics.get_fetched_lands(
+        effect, card)
     targets = []
     for type_ in valid_types:
         for card in player.deck.library:
-            if type_ in card.subtypes:
+            alltypes = card.subtypes + card.types
+            alltypes = [x.lower() for x in alltypes]
+            if ut.is_subset(type_, alltypes):
                 targets += [card]
     return targets
 
 
 def get_valid_targets(effects, card, player):
     valid_targets_list = []
+    target_values_list = []
     for effect in effects:
         if effect.startswith('Search your'):
-            valid_targets_list += [get_fetch_search_targets(effect, card, player)]
+            targets = get_fetch_search_targets(effect, card, player)
+            # allow fail to find, but it doesnt add any value
+            # (except maybe a shuffle value)
+            valid_targets_list += [targets + [None]]
+            # TODO: assign values
+            target_values_list += [[1] * len(targets) + [0]]
         elif effect == 'shuffle your library':
-            valid_targets_list += [None]
-    return valid_targets_list
+            valid_targets_list += [[None]]
+            target_values_list += [[0]]
+    return valid_targets_list, target_values_list
 
 
-def choose_targets(effects, card, player, valid_targets_list):
+def choose_targets(effects, card, player, valid_targets_list, target_values_list):
+    #print('valid_targets_list = %r' % (valid_targets_list,))
+    #print('target_values_list = %r' % (target_values_list,))
     targets_list = []
-    for valid_targets in valid_targets_list:
-        if valid_targets is None:
-            targets_list += [valid_targets]
-        else:
-            # TODO: Intelligent Choice
-            targets_list += [valid_targets[0]]
-    return targets_list
+    effect_value = 0
+    for effect, valid_targets, values in zip(effects, valid_targets_list, target_values_list):
+        # TODO: Make Intelligent Choice
+        # TODO: Disllow casting if targeted spells with illegal targets
+        if len(valid_targets) == 0:
+            raise Exception('Illegal targets, fail to find should be None')
+        idx = ut.list_argmax(values)
+        targets_list += [valid_targets[idx]]
+        effect_value += values[idx]
+    return targets_list, effect_value
 
 
-def get_effects(player, effects, targets_list):
+def execute_effects(player, effects, targets_list):
     for effect, targets in zip(effects, targets_list):
         if effect.startswith('Search your library for'):
-            player.deck.library.remove(targets)
-            if effect.endswith('and put it onto the battlefield'):
-                player.put_on_battlefield(targets)
-            elif effect.endswith('and put it onto the battlefield tapped'):
-                player.put_on_battlefield(targets, ['tapped'])
+            if targets is None:
+                print('Fail to find')
+            else:
+                player.deck.library.remove(targets)
+                if effect.endswith('and put it onto the battlefield'):
+                    player.put_on_battlefield(targets)
+                elif effect.endswith('and put it onto the battlefield tapped'):
+                    player.put_on_battlefield(targets, ['tapped'])
         elif effect == 'shuffle your library':
             player.shuffle()
         else:
             raise NotImplementedError('UNKNOWN EFFECT: ' + effect)
 
 
-def pay_costs(player, card, costs):
+def get_cost_value(player, card, costs):
+    total_cost_value = 0
+    for cost in costs:
+        match = re.search(r'Pay (?P<num>\d+) life', cost)
+        if match:
+            groupdict = match.groupdict()
+            num = float(groupdict['num'])
+            denom =  (player.life - 1)
+            if denom <= 0:
+                total_cost_value += np.inf
+            else:
+                total_cost_value += (num / denom)
+    return total_cost_value
+
+
+def execute_costs(player, card, costs):
     for cost in costs:
         match = re.search(r'Pay (?P<num>\d+) life', cost)
         if cost == '{T}':
@@ -853,20 +904,27 @@ def goldfish(deck):
         untapped_lands = [
             c for c in player.bfield
             if ut.is_superset(c.types, ['Land']) and 'tapped' not in c.state]
-        mana_potential = [c.mana_source_stats() for c in untapped_lands]
+        mana_potential = [
+            c.mana_source_stats()
+            for c in untapped_lands]
         resources['mana_potential'] = mana_potential
         resources['life'] = 20
 
-    def activate_ability(player, card, ability):
+    def get_ability_targets(player, card, ability):
+        effects = ability['effects']
+        valid_targets_list, target_values_list = get_valid_targets(
+            effects, card, player)
+        targets_list, effect_value = choose_targets(
+            effects, card, player, valid_targets_list, target_values_list)
+        return targets_list, effect_value
+
+    def execute_ability(player, card, ability, targets_list):
         costs = ability['costs']
         effects = ability['effects']
 
-        valid_targets_list = get_valid_targets(effects, card, player)
-        targets_list = choose_targets(effects, card, player, valid_targets_list)
-
         with ut.Indenter('    '):
-            pay_costs(player, card, costs)
-            get_effects(player, effects, targets_list)
+            execute_costs(player, card, costs)
+            execute_effects(player, effects, targets_list)
 
     #def main_phase_play():
     #    player.print_state()
@@ -881,11 +939,15 @@ def goldfish(deck):
     player.reset()
     player.initial_draw()
 
-    for turn in range(0, 4):
+    player.print_state()
+
+    print(' GAME START')
+
+    for global_turn in range(0, 10):
 
         player.untap_step()
 
-        if turn > 0:
+        if global_turn > 0:
             player.draw_step()
         else:
             print('+ --- Skip First Draw Phase')
@@ -894,14 +956,33 @@ def goldfish(deck):
 
         for card in player.bfield:
             if 'fetch' in card.heuristic_types:
-                print('cracking fetchland ' + card.name)
                 ability = card.get_abilities()[0]
-                activate_ability(player, card, ability)
+                targets_list, effect_value = get_ability_targets(player, card, ability)
+                cost_value = get_cost_value(player, card, ability['costs'])
+                #print('effect_value = %r' % (effect_value,))
+                #print('cost_value = %r' % (cost_value,))
+                #print('total_value = %r' % (total_value,))
+                total_value = (effect_value - cost_value)
+                print('Ability Value =  %r' % (total_value,))
+                if total_value > 0:
+                    print('cracking fetchland ' + card.name)
+                    execute_ability(player, card, ability, targets_list)
+                elif total_value == 0:
+                    print('No value to cracking ' + card.name)
+                    execute_ability(player, card, ability, targets_list)
+                    pass
+                else:
+                    #print('effect_value = %r' % (effect_value,))
+                    #print('cost_value = %r' % (cost_value,))
+                    #print('total_value = %r' % (total_value,))
+                    print('Negative value to crack ' + card.name)
+                    #import sys
+                    #sys.exit(1)
 
         player.print_state()
-        print('END TURN\n')
+        print('END TURN %d\n' % (player.turn,))
 
-    print(ut.repr3([card.heuristic_infodict for card in player.hand]))
+    #print(ut.repr3([card.heuristic_infodict for card in player.hand]))
     pass
 
 
@@ -919,7 +1000,7 @@ def main():
     """
     decklist_text, mydiff = testdata_deck()
     deck = load_list(decklist_text, mydiff)
-    inspect_deck(deck)
+    #inspect_deck(deck)
     goldfish(deck)
 
 
