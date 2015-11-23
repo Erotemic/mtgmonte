@@ -1,6 +1,8 @@
 """
 References:
     mtg forge http://mtgrares.blogspot.com/
+    http://svn.slightlymagic.net/websvn/listing.php?repname=forge
+    http://svn.slightlymagic.net/websvn/listing.php?repname=forge&path=%2Ftrunk%2Fforge-ai%2Fsrc%2Fmain%2Fjava%2Fforge%2Fai%2F&#a882f1d0caaba54135bcb4877bc0cac72
 
 cd ~/code/mtgmonte
 
@@ -802,16 +804,40 @@ class Player(object):
         def solve_current_hand():
 
             land_list = land_in_hand
-            nonland_list = nonland_in_hand
+            spell_list = nonland_in_hand
 
             [land.mana_source_stats()[0] for land in land_list]
-            costs = [nonland.mana_cost for nonland in nonland_list]
+            costs = [nonland.mana_cost for nonland in spell_list]
+
+            # make knapsack items
+            total_avail_mana = len(land_list)
+            flags = [spell.cmc < total_avail_mana for spell in spell_list]
+            feasible_spells = ut.compress(spell_list, flags)
+
+            items = [(1, spell.cmc, idx) for idx, spell in enumerate(feasible_spells)]
+            total_val, subset = ut.knapsack(items, total_avail_mana)
+            sequence = ut.take(feasible_spells, ut.get_list_column(subset, 2))
+
+            #import scipy
+            #scipy.misc.factorial(len(feasible_spells))
+
+            def greedy_sequence():
+                for item in items:
+                    spell = feasible_spells[item[2]]
+                pass
+
+            import itertools
+            for perm in itertools.permutations(feasible_spells):
+                print(perm)
 
             combos = list(ut.iprod(*[land.mana_source_stats()[0] for land in land_list]))
             for combo in combos:
                 pass
 
+
             def castable(nonland_in_hand):
+                # Find what is castable with lands in play
+
                 pass
 
             pass
