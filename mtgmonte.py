@@ -29,6 +29,9 @@ ut.util_cache.VERBOSE_CACHE = False
 print, rrr, profile = ut.inject2(__name__, '[mtgmonte]')
 
 
+MANA_SYMBOLS = 'WUBRG'
+
+
 def testdata_deck():
     jeskai_black = ut.codeblock(
         '''
@@ -227,6 +230,18 @@ class Card2(Card):
         return infodict
 
     @property
+    def manacost_colored(card):
+        return [x for x in card.mana_cost if x in MANA_SYMBOLS]
+
+    @property
+    def manacost_uncolored(card):
+        if not hasattr(card, 'manacost'):
+            return 0
+        patern = '[' + MANA_SYMBOLS + ']'
+        cost = int('0' + re.sub(patern, card.mana_cost, ''))
+        return cost
+
+    @property
     def cmc(card):
         if len(card.mana_cost) > 0:
             try:
@@ -341,6 +356,14 @@ class Card2(Card):
 
     def get_nonmana_abilities(card):
         pass
+
+    def get_goldfish_value(card):
+        # TODO: consider game state
+        return 1
+
+    def mana_potential(card, deck=None):
+        list_ = card.mana_source_stats(deck)[0]
+        return [x.strip('{}') for x in list_]
 
     def mana_source_stats(card, deck=None):
         rule_blocks = card.rules_text.split(';')
@@ -802,45 +825,27 @@ class Player(object):
         ]
 
         def solve_current_hand():
-
+            # sim land in play
+            # really need available mana
             land_list = land_in_hand
             spell_list = nonland_in_hand
 
-            [land.mana_source_stats()[0] for land in land_list]
-            costs = [nonland.mana_cost for nonland in spell_list]
+            import mtgutils
+            cmc_feasible_sequences = mtgutils.get_cmc_feasible_sequences(
+                spell_list, land_list)
 
-            # make knapsack items
-            total_avail_mana = len(land_list)
-            flags = [spell.cmc < total_avail_mana for spell in spell_list]
-            feasible_spells = ut.compress(spell_list, flags)
+            flags = [mtgutils.can_cast(spell_sequence, land_list)
+                     for spell_sequence in cmc_feasible_sequences]
 
-            items = [(1, spell.cmc, idx) for idx, spell in enumerate(feasible_spells)]
-            total_val, subset = ut.knapsack(items, total_avail_mana)
-            sequence = ut.take(feasible_spells, ut.get_list_column(subset, 2))
+            feasible_sequences = ut.compress(cmc_feasible_sequences, flags)
 
-            #import scipy
-            #scipy.misc.factorial(len(feasible_spells))
-
-            def greedy_sequence():
-                for item in items:
-                    spell = feasible_spells[item[2]]
-                pass
-
-            import itertools
-            for perm in itertools.permutations(feasible_spells):
-                print(perm)
-
-            combos = list(ut.iprod(*[land.mana_source_stats()[0] for land in land_list]))
-            for combo in combos:
-                pass
-
-
-            def castable(nonland_in_hand):
-                # Find what is castable with lands in play
-
-                pass
-
-            pass
+            # Find best value in feasible solutions
+            value_list = [
+                sum([card.get_goldfish_value() for card in combo])
+                for combo in feasible_sequences
+            ]
+            index = ut.list_argmax(value_list)
+            sequence = feasible_sequences[index]
 
         """
         # Land choice is a dynamic programming algorithm
