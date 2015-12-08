@@ -5,13 +5,12 @@ print, rrr, profile = ut.inject2(__name__, '[mtgutils]')
 
 
 # Then check for color considerations
-def can_cast(spell_sequence, land_list):
+def can_cast(spell_sequence, mana_combos):
     """
     Returns if a spell sequence is castable given the currents lands
     (hacky because it doesnt take into account other mana sources
      like dark ritual or birds of paradise)
     """
-    mana_combos = possible_mana_combinations(land_list)
     color_costs = [s.manacost_colored for s in spell_sequence]
     any_costs = [s.manacost_uncolored for s in spell_sequence]
 
@@ -44,32 +43,32 @@ def can_cast(spell_sequence, land_list):
 @ut.memoize
 def possible_mana_combinations(land_list, deck=None):
     avail_mana = [land.mana_potential(deck=deck) for land in land_list]
+    avail_mana = filter(len, avail_mana)
     mana_combos = list(ut.iprod(*avail_mana))
     mana_combos = list(set([tuple(sorted(x)) for x in mana_combos]))
     return mana_combos
 
 
-def get_max_avail_cmc(land_list):
-    max_avail_cmc = sum([
-        max(map(len, land.mana_potential()))
-        for land in land_list])
+def get_max_avail_cmc(land_list, deck=None):
+    avail_mana = [land.mana_potential(deck=deck) for land in land_list]
+    avail_mana = filter(len, avail_mana)
+    maxgen_list = [max(map(len, mana)) for mana in avail_mana]
+    max_avail_cmc = sum(maxgen_list)
     return max_avail_cmc
 
 
-def get_cmc_feasible_sequences(spell_list, land_list):
-    max_avail_cmc = get_max_avail_cmc(land_list)
+def get_cmc_feasible_sequences(spell_list, max_avail_cmc):
     # Get spells castable on their own
     flags = [spell.cmc <= max_avail_cmc for spell in spell_list]
     feasible_spells = ut.compress(spell_list, flags)
     cmc_feasible_sequences = []
-    for num in range(len(spell_list)):
+    for num in range(1, len(feasible_spells) + 1):
         spell_combos = list(itertools.combinations(feasible_spells, num))
         for combo in spell_combos:
             total = sum([spell.cmc for spell in combo])
             if total <= max_avail_cmc:
                 cmc_feasible_sequences.append(combo)
     return cmc_feasible_sequences
-
 
 
 #def hacky_knapsack_solns():

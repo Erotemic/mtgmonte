@@ -4,6 +4,11 @@ References:
     http://svn.slightlymagic.net/websvn/listing.php?repname=forge
     http://svn.slightlymagic.net/websvn/listing.php?repname=forge&path=%2Ftrunk%2Fforge-ai%2Fsrc%2Fmain%2Fjava%2Fforge%2Fai%2F&#a882f1d0caaba54135bcb4877bc0cac72
 
+sudo apt-get install libxml2-dev libxslt1-dev -y
+pip install cython
+# pip install git+git://github.com/chigby/mtg.git@master
+pip install mtg
+
 cd ~/code/mtgmonte
 
             if False:
@@ -181,7 +186,7 @@ class Card2(Card):
 
     def __init__(card, *args, **kwargs):
         card.state = []
-        super(Card2, card).__init(*args, **kwargs)
+        super(Card2, card).__init__(*args, **kwargs)
 
     def __repr__(card):
         return '<' + card.__str__() + '>'
@@ -361,9 +366,17 @@ class Card2(Card):
         # TODO: consider game state
         return 1
 
+    def is_tapped(card):
+        return 'tapped' in card.state
+
     def mana_potential(card, deck=None):
-        list_ = card.mana_source_stats(deck)[0]
-        return [x.strip('{}') for x in list_]
+        if card.is_tapped():
+            # todo: just check feasiblity of ability
+            mana_potential = []
+        else:
+            list_ = card.mana_source_stats(deck)[0]
+            mana_potential = [x.strip('{}') for x in list_]
+        return mana_potential
 
     def mana_source_stats(card, deck=None):
         rule_blocks = card.rules_text.split(';')
@@ -772,6 +785,24 @@ class Player(object):
             player.remove_from_battlefield(card)
             player.put_in_graveyard(card)
 
+    def get_cards_in_play(player, valid_types=None):
+        return [
+            c for c in player.bfield
+            if valid_types is None or ut.is_superset(c.types, valid_types)
+        ]
+
+    def get_cards_in_hand(player, valid_types=None, invert=False):
+        card_list = player.hand
+        if valid_types is None:
+            valid_cards = card_list
+        else:
+            flags = [ut.is_superset(c.types, valid_types)
+                     for c in card_list]
+            if invert:
+                flags = ut.not_list(flags)
+            valid_cards = ut.list_compress(card_list, flags)
+        return valid_cards
+
     def play_land(player):
         r"""
         Args:
@@ -805,6 +836,10 @@ class Player(object):
             >>> player.draw_step()
             >>> player.draw_step()
             >>> player.print_state()
+            >>> player.play_land()
+            >>> player.play_land()
+            >>> player.play_land()
+            >>> player.print_state()
 
             >>> # ----
             >>> player.play_land()
@@ -814,27 +849,25 @@ class Player(object):
             print('+ --- Play Land')
 
         # Choose best land to play
-        land_in_hand = [
-            c for c in player.hand
-            if ut.is_superset(c.types, ['Land'])
-        ]
+        land_in_hand = player.get_cards_in_hand(['Land'])
+        land_in_play = player.get_cards_in_play(['Land'])
 
-        nonland_in_hand = [
-            c for c in player.hand
-            if not ut.is_superset(c.types, ['Land'])
-        ]
+        nonland_in_hand = player.get_cards_in_hand(['Land'], invert=True)
 
-        def solve_current_hand():
+        def solve_current_hand(land_in_play, nonland_in_hand):
             # sim land in play
             # really need available mana
-            land_list = land_in_hand
+            land_list = land_in_play
             spell_list = nonland_in_hand
 
             import mtgutils
-            cmc_feasible_sequences = mtgutils.get_cmc_feasible_sequences(
-                spell_list, land_list)
 
-            flags = [mtgutils.can_cast(spell_sequence, land_list)
+            max_avail_cmc = mtgutils.get_max_avail_cmc(land_list)
+            cmc_feasible_sequences = mtgutils.get_cmc_feasible_sequences(
+                spell_list, max_avail_cmc)
+
+            mana_combos = mtgutils.possible_mana_combinations(land_list)
+            flags = [mtgutils.can_cast(spell_sequence, mana_combos)
                      for spell_sequence in cmc_feasible_sequences]
 
             feasible_sequences = ut.compress(cmc_feasible_sequences, flags)
@@ -846,6 +879,7 @@ class Player(object):
             ]
             index = ut.list_argmax(value_list)
             sequence = feasible_sequences[index]
+            return sequence
 
         """
         # Land choice is a dynamic programming algorithm
@@ -1127,4 +1161,6 @@ if __name__ == '__main__':
     import multiprocessing
     multiprocessing.freeze_support()  # for win32
     import utool as ut  # NOQA
-    ut.doctest_funcs()
+    res = ut.doctest_funcs()
+    if res[1] == 0:
+        main()
