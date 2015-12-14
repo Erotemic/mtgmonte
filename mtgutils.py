@@ -7,9 +7,32 @@ print, rrr, profile = ut.inject2(__name__, '[mtgutils]')
 # Then check for color considerations
 def can_cast(spell_sequence, mana_combos):
     """
-    Returns if a spell sequence is castable given the currents lands
-    (hacky because it doesnt take into account other mana sources
-     like dark ritual or birds of paradise)
+    Returns if a spell sequence is castable given the current mana sources
+
+    Args:
+        spell_sequence (list):
+        mana_combos (list):
+
+    Returns:
+        bool: valid
+
+    CommandLine:
+        python -m mtgutils --exec-can_cast --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from mtgutils import *  # NOQA
+        >>> import mtgobjs
+        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island']))
+        >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand'])
+        >>> spell_sequence = '?'
+        >>> mana_combos = possible_mana_combinations(land_list, deck)
+        >>> valid = can_cast(spell_sequence, mana_combos)
+        >>> result = ('valid = %s' % (str(valid),))
+        >>> print(result)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> ut.show_if_requested()
     """
     color_costs = [s.manacost_colored for s in spell_sequence]
     any_costs = [s.manacost_uncolored for s in spell_sequence]
@@ -42,10 +65,25 @@ def can_cast(spell_sequence, mana_combos):
 
 @ut.memoize
 def possible_mana_combinations(land_list, deck=None):
+    """
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from mtgutils import *  # NOQA
+        >>> import mtgobjs
+        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
+        >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand', 'Flooded Strand'])
+        >>> mana_combos = possible_mana_combinations(land_list, deck)
+        >>> print(ut.repr2(mana_combos, nl=1))
+    """
+    # FIXME: not actually possible to get GG here
+    # FIXME: can not get black immediately without fetching island first
     avail_mana = [land.mana_potential(deck=deck) for land in land_list]
     avail_mana = filter(len, avail_mana)
     mana_combos = list(ut.iprod(*avail_mana))
-    mana_combos = list(set([tuple(sorted(x)) for x in mana_combos]))
+    combo_ids = [tuple(sorted(x)) for x in mana_combos]
+    flags = ut.flag_unique_items(combo_ids)
+    mana_combos = ut.compress(mana_combos, flags)
     return mana_combos
 
 
