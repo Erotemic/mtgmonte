@@ -166,7 +166,7 @@ class Player(object):
         land_list = land_in_play
         spell_list = nonland_in_hand
 
-        max_avail_cmc = mtgutils.get_max_avail_cmc(land_list)
+        max_avail_cmc = mtgutils.get_max_avail_cmc(land_list, deck=player.deck)
         cmc_feasible_sequences = mtgutils.get_cmc_feasible_sequences(
             spell_list, max_avail_cmc)
 
@@ -174,7 +174,7 @@ class Player(object):
             sequence = []
             value = 0
         else:
-            mana_combos = mtgutils.possible_mana_combinations(land_list)
+            mana_combos = mtgutils.possible_mana_combinations(land_list, player.deck)
             flags = [mtgutils.can_cast(spell_sequence, mana_combos)
                      for spell_sequence in cmc_feasible_sequences]
             feasible_sequences = ut.compress(cmc_feasible_sequences, flags)
@@ -198,7 +198,7 @@ class Player(object):
             target_values_list = []
             for effect in effects:
                 if effect.startswith('Search your'):
-                    targets = get_fetch_search_targets(effect, card, player)
+                    targets = mtgrules.get_fetch_search_targets(effect, card, player.deck)
                     # allow fail to find, but it doesnt add any value
                     # (except maybe a shuffle value)
                     valid_targets_list += [targets + [None]]
@@ -582,20 +582,6 @@ class Player(object):
                 flags = ut.not_list(flags)
             valid_cards = ut.list_compress(card_list, flags)
         return valid_cards
-
-
-def get_fetch_search_targets(effect, card, player):
-    RuleHeuristics = mtgrules.RuleHeuristics
-    valid_types = RuleHeuristics.get_fetched_lands(
-        effect, card)
-    targets = []
-    for type_ in valid_types:
-        for card in player.deck.library:
-            alltypes = card.subtypes + card.types
-            alltypes = [x.lower() for x in alltypes]
-            if ut.is_subset(type_, alltypes):
-                targets += [card]
-    return targets
 
 
 def get_cost_value(player, card, costs):

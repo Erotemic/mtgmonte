@@ -12,7 +12,8 @@ class RuleHeuristics(object):
     cls = RuleHeuristics
     """
     ETB = ' enters the battlefield '
-    MANASYM = ut.named_field('manasym', '{[WUBRG]}')
+    COLORSYMS = 'WUBRG'
+    MANASYM = ut.named_field('manasym', '{[' + COLORSYMS + ']}')
 
     @classmethod
     def _iter_blocks(cls, card):
@@ -27,7 +28,13 @@ class RuleHeuristics(object):
 
     @classmethod
     def mana_generated(cls, block, card):
+        """
+        import mtgrules
+        cls = mtgrules.RuleHeuristics
+        """
         esc = re.escape
+        if block in cls.MANASYM:
+            return ['{' + block + '}']
         managen_line = '{T}: Add ' + cls._fill('managen') + ' to your mana pool.'
         managen_line_regexes = [managen_line,
                                 esc('(') + managen_line + esc(')')]
@@ -98,3 +105,21 @@ class RuleHeuristics(object):
         )
         match = re.search(pain_regex, effect)
         return match is not None
+
+
+def get_fetch_search_targets(effect, card, deck=None):
+    import mtgobjs
+    valid_types = RuleHeuristics.get_fetched_lands(effect, card)
+    targets = []
+    for type_ in valid_types:
+        if deck is None:
+            # Infer normal sort of thing out of deck context
+            card = mtgobjs.lookup_card(type_)
+            targets.add(card)
+        else:
+            for card in deck.library:
+                alltypes = card.subtypes + card.types
+                alltypes = [x.lower() for x in alltypes]
+                if ut.is_subset(type_, alltypes):
+                    targets += [card]
+    return targets

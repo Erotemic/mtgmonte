@@ -30,9 +30,6 @@ def can_cast(spell_sequence, mana_combos):
         >>> valid = can_cast(spell_sequence, mana_combos)
         >>> result = ('valid = %s' % (str(valid),))
         >>> print(result)
-        >>> ut.quit_if_noshow()
-        >>> import plottool as pt
-        >>> ut.show_if_requested()
     """
     color_costs = [s.manacost_colored for s in spell_sequence]
     any_costs = [s.manacost_uncolored for s in spell_sequence]
@@ -66,6 +63,7 @@ def can_cast(spell_sequence, mana_combos):
 @ut.memoize
 def possible_mana_combinations(land_list, deck=None):
     """
+    cd ~/code/mtgmonte
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -73,22 +71,47 @@ def possible_mana_combinations(land_list, deck=None):
         >>> import mtgobjs
         >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
         >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand', 'Flooded Strand'])
+        >>> card = land_list[-1]
         >>> mana_combos = possible_mana_combinations(land_list, deck)
-        >>> print(ut.repr2(mana_combos, nl=1))
+        >>> print(ut.repr2(mana_combos, nl=1, strvals=True))
+        (W, U, G, U),
+        (W, U, G, B),
+        (W, U, U, U),
+        (W, U, U, B),
+        (U, U, G, U),
+        (U, U, G, B),
+        (U, U, U, U),
+        (U, U, U, B),
     """
-    # FIXME: not actually possible to get GG here
-    # FIXME: can not get black immediately without fetching island first
-    avail_mana = [land.mana_potential(deck=deck) for land in land_list]
+    avail_mana = [land.mana_potential2(deck=deck, recurse=False)
+                  for land in land_list]
     avail_mana = filter(len, avail_mana)
-    mana_combos = list(ut.iprod(*avail_mana))
-    combo_ids = [tuple(sorted(x)) for x in mana_combos]
+    mana_combos1 = list(ut.iprod(*avail_mana))
+    import six
+    # Encode the idea that two fetches cant fetch the same land
+    non_class1 = [
+        [c for c in co if not isinstance(c, six.string_types)]
+        for co in mana_combos1
+    ]
+    flags = [len(co) == 0 or len(set(co)) == len(co) for co in non_class1]
+    mana_combos2 = ut.compress(mana_combos1, flags)
+    mana_combos3 = [[[c] if isinstance(c, six.string_types) else
+                     c.mana_potential2(deck=deck)
+                     for c in co] for co in mana_combos2]
+    unflat_combos3 = [list(ut.iprod(*co)) for co in mana_combos3]
+    mana_combos4 = ut.flatten(unflat_combos3)
+
+    # avail_mana = [land.mana_potential(deck=deck) for land in land_list]
+    # avail_mana = filter(len, avail_mana)
+    # mana_combos4 = list(ut.iprod(*avail_mana))
+    combo_ids = [tuple(sorted(x)) for x in mana_combos4]
     flags = ut.flag_unique_items(combo_ids)
-    mana_combos = ut.compress(mana_combos, flags)
+    mana_combos = ut.compress(mana_combos4, flags)
     return mana_combos
 
 
 def get_max_avail_cmc(land_list, deck=None):
-    avail_mana = [land.mana_potential(deck=deck) for land in land_list]
+    avail_mana = [land.mana_potential2(deck=deck, recurse=True) for land in land_list]
     avail_mana = filter(len, avail_mana)
     maxgen_list = [max(map(len, mana)) for mana in avail_mana]
     max_avail_cmc = sum(maxgen_list)
