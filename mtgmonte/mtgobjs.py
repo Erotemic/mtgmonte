@@ -67,7 +67,7 @@ def lookup_card(cardname):
 @six.add_metaclass(ut.ReloadingMetaclass)
 class Deck(object):
     """
-    from mtgobjs import *  # NOQA
+    from mtgmonte.mtgobjs import *  # NOQA
     """
     def __init__(deck, card_list):
         deck.card_list = card_list
@@ -139,7 +139,7 @@ class Card2(Card):
     """
     cd ~/code/mtgmonte
 
-    from mtgobjs import *  # NOQA
+    from mtgmonte.mtgobjs import *  # NOQA
 
     card = lookup_card('Island')
 
@@ -376,6 +376,7 @@ class Card2(Card):
             mana_potential = [x.strip('{}') for x in list_]
         return mana_potential
 
+    @property
     def ability_blocks(card):
         # TODO: filter out non-"activated" abilities
         blocks = card.rules_text.split(';')
@@ -386,24 +387,26 @@ class Card2(Card):
         cd ~/code/mtgmonte
 
         CommandLine:
-            python -m mtgmonte.mtgobjs --exec-mana_potential2 --show
+            python -m mtgmonte.mtgobjs --exec-mana_potential2
 
         Example:
             >>> # ENABLE_DOCTEST
             >>> from mtgmonte import mtgobjs
             >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
-            >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island'])
+            >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb'])
+            >>> card = cards[-1]
             >>> result = ut.repr2([card.mana_potential2(deck) for card in cards])
-            [[u'B', u'U', u'G'], [u'W', u'U'], [u'U']]
+            >>> print(result)
+            [['B', 'U', 'G'], ['W', 'U'], ['U'], ['C', 'U', 'R'], ['CC']]
         """
         from mtgmonte import mtgrules
         mana_generated = [mtgrules.RuleHeuristics.mana_generated(block, card)
-                          for block in card.ability_blocks()]
+                          for block in card.ability_blocks]
         if mtgrules.RuleHeuristics.is_fetchland(block, card):
             from mtgmonte import mtgrules
             fetch_targets = [
                 mtgrules.get_fetch_search_targets(block, card, deck)
-                for block in card.ability_blocks()]
+                for block in card.ability_blocks]
             if recurse:
                 mana_generated = [
                     list(set(ut.flatten([t.mana_potential2(deck) for t in ts]))) for ts in fetch_targets
@@ -411,7 +414,10 @@ class Card2(Card):
             else:
                 mana_generated = fetch_targets
 
-        mana_potential2 = [x.strip('{}') if isinstance(x, six.string_types) else x for x in mana_generated[0]]
+        # TODO: use more than one iteration
+        mana_potential2 = ut.flatten([
+            [x.strip('{}') if isinstance(x, six.string_types) else x for x in xs]
+            for xs in mana_generated])
         return mana_potential2
 
     def mana_source_stats(card, deck=None):
@@ -596,3 +602,15 @@ def load_list(decklist_text, mydiff):
                     new_cardlist.remove(card_)
         deck = Deck(new_cardlist)
     return deck
+
+
+if __name__ == '__main__':
+    r"""
+    CommandLine:
+        python -m mtgmonte.mtgobjs
+        python -m mtgmonte.mtgobjs --allexamples
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()

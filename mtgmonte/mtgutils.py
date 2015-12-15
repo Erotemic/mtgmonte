@@ -18,14 +18,14 @@ def can_cast(spell_sequence, mana_combos):
         bool: valid
 
     CommandLine:
-        python -m mtgmonte.mtgutils --exec-can_cast --show
+        python -m mtgmonte.mtgutils --exec-can_cast
 
     Setup:
         >>> # DISABLE_DOCTEST
         >>> from mtgmonte.mtgutils import *  # NOQA
         >>> from mtgmonte import mtgobjs
-        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Volcanic Island']))
-        >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand'])
+        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Volcanic Island', 'Tundra', 'Plateau']))
+        >>> land_list = mtgobjs.load_cards(['Mountain', 'Island', 'Flooded Strand', 'Shivan Reef'])
         >>> mana_combos = possible_mana_combinations(land_list, deck)
 
     Example0:
@@ -38,12 +38,11 @@ def can_cast(spell_sequence, mana_combos):
 
     Example1:
         >>> # ENABLE_DOCTEST
-        >>> #spell_sequence = mtgobjs.load_cards(['Lightning Angel'])
-        >>> spell_sequence = mtgobjs.load_cards(['Mantis Rider'])
+        >>> spell_sequence = mtgobjs.load_cards(['Lightning Angel'])
         >>> valid = can_cast(spell_sequence, mana_combos)
         >>> result = ('valid = %s' % (str(valid),))
         >>> print(result)
-        valid = False
+        valid = True
     """
     color_costs = [s.manacost_colored for s in spell_sequence]
     any_costs = [s.manacost_uncolored for s in spell_sequence]
@@ -86,19 +85,23 @@ def possible_mana_combinations(land_list, deck=None):
         >>> from mtgmonte.mtgutils import *  # NOQA
         >>> from mtgmonte import mtgobjs
         >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
-        >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand', 'Flooded Strand'])
+        >>> land_list = mtgobjs.load_cards(['Ancient Tomb', 'Island', 'Flooded Strand', 'Flooded Strand', 'Shivan Reef'])
         >>> card = land_list[-1]
         >>> mana_combos = possible_mana_combinations(land_list, deck)
         >>> result = (ut.repr2(mana_combos, nl=1, strvals=True, nobraces=True))
         >>> print(result)
-        (W, U, G, U),
-        (W, U, G, B),
-        (W, U, U, U),
-        (W, U, U, B),
-        (U, U, G, U),
-        (U, U, G, B),
-        (U, U, U, U),
-        (U, U, U, B),
+        (CC, U, G, U, C),
+        (CC, U, G, B, C),
+        (CC, U, U, U, C),
+        (CC, U, U, B, C),
+        (CC, U, G, U, U),
+        (CC, U, G, B, U),
+        (CC, U, U, U, U),
+        (CC, U, U, B, U),
+        (CC, U, G, U, R),
+        (CC, U, G, B, R),
+        (CC, U, U, U, R),
+        (CC, U, U, B, R),
     """
     avail_mana = [land.mana_potential2(deck=deck, recurse=False)
                   for land in land_list]
@@ -123,6 +126,7 @@ def possible_mana_combinations(land_list, deck=None):
     combo_ids = [tuple(sorted(x)) for x in mana_combos4]
     flags = ut.flag_unique_items(combo_ids)
     mana_combos = ut.compress(mana_combos4, flags)
+    #mana_combos = list(map(tuple, [''.join(c) for c in mana_combos]))
     return mana_combos
 
 
@@ -137,19 +141,12 @@ def get_max_avail_cmc(land_list, deck=None):
         >>> from mtgmonte.mtgutils import *  # NOQA
         >>> from mtgmonte import mtgobjs
         >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
-        >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand', 'Flooded Strand'])
+        >>> land_list = mtgobjs.load_cards(['Ancient Tomb', 'Tundra', 'Island', 'Flooded Strand', 'Flooded Strand'])
         >>> card = land_list[-1]
-        >>> mana_combos = get_max_avail_cmc(land_list, deck)
-        >>> result = (ut.repr2(mana_combos, nl=1, strvals=True, nobraces=True))
+        >>> max_avail_cmc = get_max_avail_cmc(land_list, deck)
+        >>> result = (ut.repr2(max_avail_cmc, nl=1, strvals=True, nobraces=True))
         >>> print(result)
-        (W, U, G, U),
-        (W, U, G, B),
-        (W, U, U, U),
-        (W, U, U, B),
-        (U, U, G, U),
-        (U, U, G, B),
-        (U, U, U, U),
-        (U, U, U, B),
+        6
     """
     avail_mana = [land.mana_potential2(deck=deck, recurse=True) for land in land_list]
     avail_mana = filter(len, avail_mana)
