@@ -5,7 +5,7 @@ import utool as ut
 import operator as op
 import numpy as np
 import re
-import mtgrules
+from mtgmonte import mtgrules
 import copy
 from mtglib.card_renderer import Card
 #from six.moves import
@@ -27,7 +27,7 @@ def lookup_card_(cardname):
     from mtglib.card_extractor import CardExtractor
     from mtglib.card_renderer import CardList
 
-    import mtgobjs
+    from mtgmonte import mtgobjs
     #keys = ['block', 'cmc', 'color', 'colourize', 'exact',
     #        'exclude_other_colors', 'exclude_other_types', 'flavor', 'format',
     #        'hidesets', 'json', 'name', 'power', 'random', 'rarity',
@@ -57,7 +57,7 @@ def lookup_card_(cardname):
 
 
 def lookup_card(cardname):
-    import mtgobjs
+    from mtgmonte import mtgobjs
     card = mtgobjs.lookup_card_(cardname)
     #card = mtgmonte.lookup_card_(cardname, use_cache=False)
     card.rrr(verbose=False)
@@ -385,17 +385,22 @@ class Card2(Card):
         """
         cd ~/code/mtgmonte
 
-        >>> import mtgobjs
-        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
-        >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island'])
-        >>> [card.mana_potential2(deck) for card in cards]
-        [[u'B', u'U', u'G'], [u'W', u'U'], [u'U']]
+        CommandLine:
+            python -m mtgmonte.mtgobjs --exec-mana_potential2 --show
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte import mtgobjs
+            >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
+            >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island'])
+            >>> result = ut.repr2([card.mana_potential2(deck) for card in cards])
+            [[u'B', u'U', u'G'], [u'W', u'U'], [u'U']]
         """
-        import mtgrules
+        from mtgmonte import mtgrules
         mana_generated = [mtgrules.RuleHeuristics.mana_generated(block, card)
                           for block in card.ability_blocks()]
         if mtgrules.RuleHeuristics.is_fetchland(block, card):
-            import mtgrules
+            from mtgmonte import mtgrules
             fetch_targets = [
                 mtgrules.get_fetch_search_targets(block, card, deck)
                 for block in card.ability_blocks()]
@@ -444,7 +449,7 @@ class Card2(Card):
                     if card.name + ETB + 'tapped unless you control two or more basic lands.' == block:
                         costs.append('if len(controlled_basics) >= 2: ETB_Tapped()')
 
-                    # import mtgrules
+                    # from mtgmonte import mtgrules
                     # mtgrules.get_fetch_search_targets(block, card, player)
 
                     # Is fetchland

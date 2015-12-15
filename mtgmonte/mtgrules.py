@@ -12,7 +12,7 @@ class RuleHeuristics(object):
     cls = RuleHeuristics
     """
     ETB = ' enters the battlefield '
-    COLORSYMS = 'WUBRG'
+    COLORSYMS = 'WUBRGC'
     MANASYM = ut.named_field('manasym', '{[' + COLORSYMS + ']}')
 
     @classmethod
@@ -29,7 +29,7 @@ class RuleHeuristics(object):
     @classmethod
     def mana_generated(cls, block, card):
         """
-        import mtgrules
+        from mtgmonte import mtgrules
         cls = mtgrules.RuleHeuristics
         """
         esc = re.escape
@@ -108,7 +108,7 @@ class RuleHeuristics(object):
 
 
 def get_fetch_search_targets(effect, card, deck=None):
-    import mtgobjs
+    from mtgmonte import mtgobjs
     valid_types = RuleHeuristics.get_fetched_lands(effect, card)
     targets = []
     for type_ in valid_types:

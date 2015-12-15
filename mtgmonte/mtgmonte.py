@@ -28,8 +28,8 @@ import utool as ut
 from six import text_type
 import numpy as np
 import re
-import mtgrules
-import mtgobjs
+from mtgmonte import mtgrules
+from mtgmonte import mtgobjs
 #from six.moves import
 ut.util_cache.VERBOSE_CACHE = False
 print, rrr, profile = ut.inject2(__name__, '[mtgmonte]')
@@ -159,7 +159,7 @@ class Player(object):
     def find_maxval_spell_sequence(player):
         # sim land in play
         # really need available mana
-        import mtgutils
+        from mtgmonte import mtgutils
         land_in_play = player.get_cards_in_play(['Land'])
         nonland_in_hand = player.get_cards_in_hand(['Land'], invert=True)
 
@@ -284,7 +284,7 @@ class Player(object):
 
         Example:
             >>> # DISABLE_DOCTEST
-            >>> from mtgmonte import *  # NOQA
+            >>> from mtgmonte.mtgmonte import *  # NOQA
             >>> decklist_text, mydiff = testdata_deck()
             >>> deck = mtgobjs.load_list(decklist_text, mydiff)
             >>> player = Player(deck)
@@ -383,7 +383,7 @@ class Player(object):
 
         Example:
             >>> # DISABLE_DOCTEST
-            >>> from mtgmonte import *  # NOQA
+            >>> from mtgmonte.mtgmonte import *  # NOQA
             >>> decklist_text, mydiff = testdata_deck()
             >>> deck = mtgobjs.load_list(decklist_text, mydiff)
             >>> player = Player(deck)
@@ -676,7 +676,7 @@ def main():
 
     Example:
         >>> # SCRIPT
-        >>> from mtgmonte import *  # NOQA
+        >>> from mtgmonte.mtgmonte import *  # NOQA
         >>> result = main()
         >>> print(result)
     """
@@ -689,10 +689,10 @@ def main():
 if __name__ == '__main__':
     """
     cd ~/code/mtgmonte
-    >>> from mtgmonte import *  # NOQA
+    >>> from mtgmonte.mtgmonte import *  # NOQA
 
     """
-    #import mtgmonte
+    #from mtgmonte import mtgmonte
     #mtgmonte.main()
 
 if __name__ == '__main__':

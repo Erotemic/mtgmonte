@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import utool as ut
 import itertools
+import six
 print, rrr, profile = ut.inject2(__name__, '[mtgutils]')
 
 
@@ -17,19 +18,32 @@ def can_cast(spell_sequence, mana_combos):
         bool: valid
 
     CommandLine:
-        python -m mtgutils --exec-can_cast --show
+        python -m mtgmonte.mtgutils --exec-can_cast --show
 
-    Example:
+    Setup:
         >>> # DISABLE_DOCTEST
-        >>> from mtgutils import *  # NOQA
-        >>> import mtgobjs
-        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island']))
+        >>> from mtgmonte.mtgutils import *  # NOQA
+        >>> from mtgmonte import mtgobjs
+        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Volcanic Island']))
         >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand'])
-        >>> spell_sequence = '?'
         >>> mana_combos = possible_mana_combinations(land_list, deck)
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> spell_sequence = mtgobjs.load_cards(['White Knight'])
         >>> valid = can_cast(spell_sequence, mana_combos)
         >>> result = ('valid = %s' % (str(valid),))
         >>> print(result)
+        valid = False
+
+    Example1:
+        >>> # ENABLE_DOCTEST
+        >>> #spell_sequence = mtgobjs.load_cards(['Lightning Angel'])
+        >>> spell_sequence = mtgobjs.load_cards(['Mantis Rider'])
+        >>> valid = can_cast(spell_sequence, mana_combos)
+        >>> result = ('valid = %s' % (str(valid),))
+        >>> print(result)
+        valid = False
     """
     color_costs = [s.manacost_colored for s in spell_sequence]
     any_costs = [s.manacost_uncolored for s in spell_sequence]
@@ -60,20 +74,23 @@ def can_cast(spell_sequence, mana_combos):
     return valid
 
 
-@ut.memoize
+#@ut.memoize
 def possible_mana_combinations(land_list, deck=None):
     """
-    cd ~/code/mtgmonte
+
+    CommandLine:
+        python -m mtgmonte.mtgutils --test-possible_mana_combinations
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from mtgutils import *  # NOQA
-        >>> import mtgobjs
+        >>> from mtgmonte.mtgutils import *  # NOQA
+        >>> from mtgmonte import mtgobjs
         >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
         >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand', 'Flooded Strand'])
         >>> card = land_list[-1]
         >>> mana_combos = possible_mana_combinations(land_list, deck)
-        >>> print(ut.repr2(mana_combos, nl=1, strvals=True))
+        >>> result = (ut.repr2(mana_combos, nl=1, strvals=True, nobraces=True))
+        >>> print(result)
         (W, U, G, U),
         (W, U, G, B),
         (W, U, U, U),
@@ -87,7 +104,6 @@ def possible_mana_combinations(land_list, deck=None):
                   for land in land_list]
     avail_mana = filter(len, avail_mana)
     mana_combos1 = list(ut.iprod(*avail_mana))
-    import six
     # Encode the idea that two fetches cant fetch the same land
     non_class1 = [
         [c for c in co if not isinstance(c, six.string_types)]
@@ -111,6 +127,30 @@ def possible_mana_combinations(land_list, deck=None):
 
 
 def get_max_avail_cmc(land_list, deck=None):
+    """
+
+    CommandLine:
+        python -m mtgmonte.mtgutils --test-get_max_avail_cmc
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from mtgmonte.mtgutils import *  # NOQA
+        >>> from mtgmonte import mtgobjs
+        >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
+        >>> land_list = mtgobjs.load_cards(['Tundra', 'Island', 'Flooded Strand', 'Flooded Strand'])
+        >>> card = land_list[-1]
+        >>> mana_combos = get_max_avail_cmc(land_list, deck)
+        >>> result = (ut.repr2(mana_combos, nl=1, strvals=True, nobraces=True))
+        >>> print(result)
+        (W, U, G, U),
+        (W, U, G, B),
+        (W, U, U, U),
+        (W, U, U, B),
+        (U, U, G, U),
+        (U, U, G, B),
+        (U, U, U, U),
+        (U, U, U, B),
+    """
     avail_mana = [land.mana_potential2(deck=deck, recurse=True) for land in land_list]
     avail_mana = filter(len, avail_mana)
     maxgen_list = [max(map(len, mana)) for mana in avail_mana]
@@ -168,3 +208,15 @@ def get_cmc_feasible_sequences(spell_list, max_avail_cmc):
 #            #current item taken go check others
 #            print_solutions(current_item + 1, knapsack, current_sum )
 #print_solutions(0, knapsack, 0)
+
+
+if __name__ == '__main__':
+    r"""
+    CommandLine:
+        python -m mtgmonte.mtgutils
+        python -m mtgmonte.mtgutils --allexamples
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
