@@ -22,29 +22,47 @@ TAPPED = _TAPLIKE_UNICODE[-1]
 @six.add_metaclass(ut.ReloadingMetaclass)
 class Mana(object):
     def __init__(self, color, source=None, num=1):
+        if isinstance(color, Mana):
+            color = color.color
         self.color = color
         self.source = source
         self.num = num
 
+    def get_str(self):
+        try:
+            if self.num == 1:
+                return self.color
+            elif isinstance(self.num, int):
+                return '%s*%d' % (self.color, self.num,)
+            elif self.num == '∞':
+                return self.color + '*INF'  # '∞'
+            else:
+                return self.color + '*'
+        except Exception as ex:
+            ut.printex(ex, 'Error making str', keys=['self.num', 'self.color', 'self.source'])
+            raise
+
     def __str__(self):
-        if self.num == 1:
-            return self.color
-        elif isinstance(self.num, int):
-            return self.color + '*%d' % (self.num,)
-        elif self.num == '∞':
-            return self.color + '*INF'  # '∞'
-        else:
-            return self.color + '*'
+        return self.get_str()
 
     def __repr__(self):
-                            #if num != '∞' else
         if self.source is None:
-            return '<Mana {color} at {addr}>'.format(
-                color=self.color, addr=hex(id(self)))
+            return '<Mana {color}>'.format(color=self.color)
+            # return '<Mana {color} at {addr}>'.format(
+            #     color=self.color, addr=hex(id(self)))
         else:
             return '<Mana {color} from {source} at {addr}>'.format(
                 color=self.color, source=self.source,
                 addr=hex(id(self)))
+
+    def astuple(self):
+        return (self.color, self.source, self.num)
+
+    def __hash__(self):
+        return hash(self.astuple())
+
+    def __eq__(self, other):
+        return self.astuple() == other.astuple()
 
 
 def ensure_mana_list(manas=None, source=None):
@@ -105,7 +123,8 @@ class ManaSet(object):
         return self._manas[index]
 
     def get_str(self):
-        return '{' + ''.join(list(map(six.text_type, self._manas))) + '}'
+        body = ''.join([m.get_str() for m in self._manas])
+        return '{%s}' % (body,)
 
     def add(self, other):
         """
@@ -124,7 +143,33 @@ class ManaSet(object):
         return ManaSet(self._manas + other_manas)
 
     def sub(self, other):
-        return None
+        """
+        CommandLine:
+            python -m mtgmonte.mtgobjs --exec-ManaSet.sub
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *
+            >>> from mtgmonte import mtgobjs
+            >>> self = mtgobjs.ManaSet('RRRUC')
+            >>> other = mtgobjs.ManaSet('RRU')
+            >>> mana = self - other
+            >>> result = ('mana = %r' % (mana,))
+            >>> print(result)
+            mana = {CR}
+        """
+        color2_num = ut.dict_hist(other._manas)
+        color2_have = ut.dict_hist(self._manas)
+        color2_have = ut.ddict(lambda: 0, color2_have)
+        for color, num_need in color2_num.items():
+            num_have = color2_have[color]
+            if num_have < num_need:
+                raise ValueError('Cannot subtract more mana from less')
+            color2_have[color] -= num_need
+        # new_manas = ensure_mana_list(color2_have)
+        # print('new_manas = %r' % (new_manas,))
+        color2_have = {color: num for color, num in color2_have.items() if num > 0}
+        return ManaSet(color2_have)
 
     def __add__(self, other):
         return self.add(other)
@@ -342,18 +387,82 @@ class Card2(Card):
 
     @property
     def manacost_colored(card):
-        return [x for x in card.mana_cost if x in MANA_SYMBOLS]
+        r"""
+        Returns:
+            ManaSet:
+
+        CommandLine:
+            python -m mtgmonte.mtgobjs --exec-Card2.manacost_colored --show
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
+            >>> cards = load_cards(['Cruel Ultimatum', 'Kitchen Finks', 'Gitaxian Probe', 'Spectral Procession'])
+            >>> print(ut.repr2([card.mana_cost for card in cards], nl=1, nobraces=True))
+            >>> result = ut.repr2([card.manacost_colored for card in cards], nl=1, nobraces=True)
+            >>> print(result)
+            {UUBBBRR},
+            {(G/W)(G/W)},
+            {(U/P)},
+        """
+        import re
+        tokens = [x.groups() for x in re.finditer('([' + MANA_SYMBOLS + ']|\(./.\))', card.mana_cost)]
+        assert all([len(t) == 1 for t in tokens])
+        tokens = [t[0] for t in tokens]
+        return ManaSet([t for t in tokens])
+        # print(card.mana_cost)
+        # return [x for x in card.mana_cost if x in MANA_SYMBOLS]
+        # return ManaSet([x for x in card.mana_cost if x in MANA_SYMBOLS])
 
     @property
     def manacost_uncolored(card):
-        if not hasattr(card, 'manacost'):
+        r"""
+        rename to manacost any?
+
+        Returns:
+            ManaSet:
+
+        CommandLine:
+            python -m mtgmonte.mtgobjs --exec-Card2.manacost_uncolored --show
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
+            >>> cards = load_cards(['Emrakul, the Aeons Torn', 'Kitchen Finks', 'Gitaxian Probe', 'Spectral Procession'])
+            >>> print(ut.repr2([card.mana_cost for card in cards], nobraces=True))
+            >>> result = ut.repr2([card.manacost_uncolored for card in cards], nobraces=True)
+            >>> print(result)
+            15, 1, 0, 0
+        """
+        if not hasattr(card, 'mana_cost'):
+            print('card = %r' % (card,))
             return 0
-        patern = '[' + MANA_SYMBOLS + ']'
-        cost = int('0' + re.sub(patern, card.mana_cost, ''))
+        first_noncolor = re.search('[' + MANA_SYMBOLS + '\(]', card.mana_cost)
+        if first_noncolor is None:
+            start = len(card.mana_cost)
+        else:
+            start = first_noncolor.start()
+        remain = card.mana_cost[:start]
+        cost = int('0' + remain)
         return cost
 
     @property
     def cmc(card):
+        r"""
+        Returns:
+            ManaSet:
+
+        CommandLine:
+            python -m mtgmonte.mtgobjs --exec-Card2.cmc --show
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
+            >>> cards = load_cards(['Emrakul, the Aeons Torn', 'Kitchen Finks', 'Gitaxian Probe', 'Spectral Procession'])
+            >>> print(ut.repr2([card.converted_mana_cost for card in cards]))
+            >>> result = ut.repr2([card.cmc for card in cards], nobraces=True)
+            >>> print(result)
+        """
         if len(card.mana_cost) > 0:
             try:
                 return int(card.converted_mana_cost)
