@@ -27,7 +27,7 @@ COLORLESS_SYMS = 'C'
 COLOR_SYMS = 'WUBRG'
 ALL_MANA_SYM = COLOR_SYMS + COLORLESS_SYMS
 COLORLESS_MANASYM = ut.named_field('colorless_manasym', '{[0-9]+}')
-MANASYM = ut.named_field('manasym', '{[' + COLOR_SYMS + COLORLESS_SYMS + ']}')
+MANASYM = ut.named_field('manasym', '({[' + ALL_MANA_SYM + ']})+')
 
 
 def _fill(name=None):
@@ -39,7 +39,7 @@ def is_ability_block(block):
 
 
 def mana_generated(block, card, new=False):
-    """
+    r"""
     from mtgmonte import mtgrules
     from mtgmonte.mtgrules import *  # NOQA
 
@@ -50,13 +50,24 @@ def mana_generated(block, card, new=False):
         >>> # DISABLE_DOCTEST
         >>> from mtgmonte.mtgrules import *  # NOQA
         >>> from mtgmonte import mtgobjs
-        >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb', 'Black Lotus', 'Mox Lotus', 'Mox Ruby', 'Mox Diamond', 'Chrome Mox'])
-        >>> for card in cards[:-1]:
-        >>>     #print(card)
-        >>>     print(mana_generated(card.ability_blocks[-1], card))
+        >>> testmana_cards = ['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef',
+        >>>                   'Ancient Tomb', 'Black Lotus', 'Mox Lotus',
+        >>>                   'Mox Ruby', 'Mox Diamond', 'Chrome Mox', 'Elvish Mystic',
+        >>>                   'Lion\'s Eye Diamond', 'Grim Monolith', 'Tolarian Academy',
+        >>>                   'City of Brass', 'Mana Confluence', 'Lake of the Dead', 'Snow-Covered Island']
+        >>> cards = mtgobjs.load_cards(testmana_cards)
+        >>> for card in cards:
+        >>>     print('\n-----')
+        >>>     print(card)
+        >>>     card.printinfo()
+        >>>     for block in card.ability_blocks:
+        >>>         #print('block = %r' % (block,))
+        >>>         print(mana_generated(block, card))
+
+    Ignore:
         >>> card = cards[1]
         >>> card = cards[-1]
-        >>> block = card.ability_blocks[-1]
+        >>> block = card.ability_blocks[0]
         >>> result = mana_generated(block, card)
         >>> print(result)
     """
@@ -65,17 +76,27 @@ def mana_generated(block, card, new=False):
         mana_generated = ['{' + block + '}']
     else:
         #managen_line = '{T}: Add ' + _fill('managen') + ' to your mana pool.'
-        managen_line = 'Add ' + _fill('managen') + ' to your mana pool.'
+        managen_line = 'Add ' + _fill('managen') + ' to your mana pool ?' + _fill('modifier') + '$'
         managen_line_regexes = [managen_line]
         #,
         #print('block = %r' % (block,))
         #esc('(') + managen_line + esc(')')]
+        any_matched = False
         mana_generated = []
         for managen_line in managen_line_regexes:
             match = re.search(managen_line, block)
             if match is not None:
+                any_matched = True
                 manatext = match.groupdict()['managen']
+                modifier = match.groupdict()['modifier']
                 #print('manatext = %r' % (manatext,))
+                #for x in re.finditer(MANASYM, '{[' + ALL_MANA_SYM + ']}+'):
+                #    z = x.groupdict()
+                #    print('z = %r' % (z,))
+                for x in re.finditer(MANASYM, manatext):
+                    z = x.groupdict()
+                    #print('z = %r' % (z,))
+                    mana_generated += [z['manasym']]
                 for x in re.finditer(_fill('num') + ' mana of any one color', manatext):
                     numtxt = x.groupdict()['num']
                     num = english_number(numtxt)
@@ -90,13 +111,12 @@ def mana_generated(block, card, new=False):
                     num = english_number(x.groupdict()['num'])
                     refcard = x.groupdict()['refcard']
                     if refcard == 'exiled card\'s':
+                        # TODO: Refers to part of the game state
                         # Assume any color for now
-                        mana_generated += ['{' + (c * num) + '}' for c in COLOR_SYMS]
+                        mana_generated += ['{' + ('*' * num) + '}']  # for c in COLOR_SYMS]
                     #print('num = %r' % (num,))
                     #print('refcard = %r' % (refcard,))
                     #mana_generated += ['{' + (c * num) + '}' for c in COLOR_SYMS]
-                for x in re.finditer(MANASYM, manatext):
-                    mana_generated += [x.groupdict()['manasym']]
                 # Deal with colorless mana
                 for x in re.finditer(COLORLESS_MANASYM, manatext):
                     num = english_number(x.groupdict()['colorless_manasym'].strip('{}'))
@@ -104,9 +124,20 @@ def mana_generated(block, card, new=False):
                 if manatext.strip('{}') == '∞':
                     num = INF
                     mana_generated += [{'C': '∞'}]
+
+                if modifier == 'for each artifact you control.':
+                    #print('modifier = %r' % (modifier,))
+                    # TODO: Refers to part of the game state
+                    mana_generated = [{c.strip('{}'): '*'} for c in mana_generated]
+                    #{'C': '∞'}]
+                    pass
                     #num = english_number(numtext)
-    #from mtgmonte import mtgobjs
-    #return [mtgobjs.ManaSet(manas) for manas in mana_generated]
+        if not any_matched and len(mana_generated) == 0:
+            #mana_generated = []
+            mana_generated = None
+    if mana_generated is not None:
+        from mtgmonte import mtgobjs
+        mana_generated = [mtgobjs.ManaSet(manas) for manas in mana_generated]
     return mana_generated
 
 
@@ -161,7 +192,8 @@ class RuleHeuristics(object):
 
     @classmethod
     def is_triland(cls, block, card):
-        return len(cls.mana_generated(block, card)) == 3
+        mana = cls.mana_generated(block, card)
+        return mana is not None and len(mana) == 3
 
     @classmethod
     def is_fetchland(cls, block, card):

@@ -29,10 +29,12 @@ class Mana(object):
     def __str__(self):
         if self.num == 1:
             return self.color
-        elif self.num != '∞':
+        elif isinstance(self.num, int):
             return self.color + '*%d' % (self.num,)
-        else:
+        elif self.num == '∞':
             return self.color + '*INF'  # '∞'
+        else:
+            return self.color + '*'
 
     def __repr__(self):
                             #if num != '∞' else
@@ -534,7 +536,7 @@ class Card2(Card):
             [[<Tropical Island>, <Sunken Hollow>, <Island>], ['W', 'U'], ['U'], ['C', 'U', 'R'], ['CC']]
         """
         from mtgmonte import mtgrules
-        mana_generated = [mtgrules.RuleHeuristics.mana_generated(block, card)
+        mana_generated = [mtgrules.mana_generated(block, card)
                           for block in card.ability_blocks]
         if mtgrules.RuleHeuristics.is_fetchland(block, card):
             from mtgmonte import mtgrules
