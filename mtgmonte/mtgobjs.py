@@ -19,6 +19,118 @@ _TAPLIKE_UNICODE = ['⟳', '↷']
 TAPPED = _TAPLIKE_UNICODE[-1]
 
 
+@six.add_metaclass(ut.ReloadingMetaclass)
+class Mana(object):
+    def __init__(self, color, source=None, num=1):
+        self.color = color
+        self.source = source
+        self.num = num
+
+    def __str__(self):
+        if self.num == 1:
+            return self.color
+        elif self.num != '∞':
+            return self.color + '*%d' % (self.num,)
+        else:
+            return self.color + '*INF'  # '∞'
+
+    def __repr__(self):
+                            #if num != '∞' else
+        if self.source is None:
+            return '<Mana {color} at {addr}>'.format(
+                color=self.color, addr=hex(id(self)))
+        else:
+            return '<Mana {color} from {source} at {addr}>'.format(
+                color=self.color, source=self.source,
+                addr=hex(id(self)))
+
+
+def ensure_mana_list(manas=None, source=None):
+    #if sources is None:
+    #    source = None
+    #else:
+    #    source = None
+    if manas is None:
+        manas = []
+    elif hasattr(manas, '_manas'):  # isinstance(manas, ManaSet):
+        manas = manas._manas
+    elif isinstance(manas, Mana):  # isinstance(manas, ManaSet):
+        manas = [manas]
+    elif isinstance(manas, dict):  # isinstance(manas, ManaSet):
+        manas = [Mana(color, source, num) for color, num in manas.items()]
+    elif isinstance(manas, six.string_types):
+        colors = manas.strip('{}')
+        manas = [Mana(color, source) for color in colors]
+    elif isinstance(manas, (list, tuple)):
+        manas = ut.flatten([ensure_mana_list(m) for m in manas])
+    else:
+        raise ValueError('Unknown type=%r manas=%r' % (type(manas), manas,))
+    return manas
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
+class ManaSet(object):
+    """
+    CommandLine:
+        python -m mtgmonte.mtgobjs --exec-mana_potential2
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from mtgmonte.mtgobjs import *
+        >>> from mtgmonte import mtgobjs
+        >>> mana = mtgobjs.ManaSet('CCUUR')
+        >>> result = ('mana = %r' % (mana,))
+        >>> print(result)
+        mana = {CCUUR}
+    """
+
+    def __init__(self, manas=None, sources=None):
+        # TODO: use a dict representation instead?
+        _manas = ensure_mana_list(manas, sources)
+        self._manas = _manas
+
+    def __str__(self):
+        return self.get_str()
+
+    def __repr__(self):
+        return self.get_str()
+        #return '<ManaSet {mana} at {addr}>'.format(
+        #    mana=self.get_str(),
+        #    addr=hex(id(self))
+        #)
+
+    def __getitem__(self, index):
+        return self._manas[index]
+
+    def get_str(self):
+        return '{' + ''.join(list(map(six.text_type, self._manas))) + '}'
+
+    def add(self, other):
+        """
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *
+            >>> from mtgmonte import mtgobjs
+            >>> self = mtgobjs.ManaSet('R')
+            >>> other = mtgobjs.ManaSet('G')
+            >>> mana = self + other
+            >>> result = ('mana = %r' % (mana,))
+            >>> print(result)
+            mana = {RG}
+        """
+        other_manas = ensure_mana_list(other)
+        return ManaSet(self._manas + other_manas)
+
+    def sub(self, other):
+        return None
+
+    def __add__(self, other):
+        return self.add(other)
+
+    def __sub__(self, other):
+        return self.sub(other)
+
+
 #@ut.memoize
 @ut.cached_func('lookup_card', appname='mtgmonte_', key_argx=[0])
 def lookup_card_(cardname):
@@ -379,8 +491,10 @@ class Card2(Card):
     @property
     def ability_blocks(card):
         # TODO: filter out non-"activated" abilities
+        from mtgmonte import mtgrules
         blocks = card.rules_text.split(';')
-        return blocks
+        return list(filter(mtgrules.is_ability_block, blocks))
+        #return blocks
 
     def mana_potential2(card, deck=None, recurse=True):
         """
@@ -392,12 +506,32 @@ class Card2(Card):
         Example:
             >>> # ENABLE_DOCTEST
             >>> from mtgmonte import mtgobjs
+            >>> cards = mtgobjs.load_cards(['Tundra', 'Ancient Tomb', 'Black Lotus'])
+            >>> card = cards[-1]
+            >>> result = ut.repr2([card.mana_potential2(deck) for card in cards])
+            >>> print(result)
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte import mtgobjs
             >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
             >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb'])
             >>> card = cards[-1]
             >>> result = ut.repr2([card.mana_potential2(deck) for card in cards])
             >>> print(result)
+            [[UUBGU], [WU], [U], [CUR], [CC]]
+
             [['B', 'U', 'G'], ['W', 'U'], ['U'], ['C', 'U', 'R'], ['CC']]
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte import mtgobjs
+            >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
+            >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb'])
+            >>> card = cards[-1]
+            >>> result = ut.repr2([card.mana_potential2(deck, recurse=False) for card in cards])
+            >>> print(result)
+            [[<Tropical Island>, <Sunken Hollow>, <Island>], ['W', 'U'], ['U'], ['C', 'U', 'R'], ['CC']]
         """
         from mtgmonte import mtgrules
         mana_generated = [mtgrules.RuleHeuristics.mana_generated(block, card)
@@ -418,7 +552,10 @@ class Card2(Card):
         mana_potential2 = ut.flatten([
             [x.strip('{}') if isinstance(x, six.string_types) else x for x in xs]
             for xs in mana_generated])
-        return mana_potential2
+        if recurse:
+            return [ManaSet(mana) for mana in mana_potential2]
+        else:
+            return mana_potential2
 
     def mana_source_stats(card, deck=None):
         rule_blocks = card.rules_text.split(';')
