@@ -71,6 +71,21 @@ def ensure_mana_list(manas=None, source=None):
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
+class ManaCost(object):
+    """
+    Represents mana costs of spells and abilities. Can represent conditional
+    costs such as hybrid mana, phyrexian mana, delve, and snow mana.
+    """
+    pass
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
+class ManaPool(object):
+    """ Only represents real colored and uncolored allocations of mana """
+    pass
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
 class ManaSet(object):
     """
     CommandLine:
