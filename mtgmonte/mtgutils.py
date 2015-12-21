@@ -45,8 +45,9 @@ def can_cast(spell_sequence, mana_combos):
         >>> print(result)
         valid = True
     """
-    color_costs = [s.manacost_colored for s in spell_sequence]
-    any_costs = [s.manacost_uncolored for s in spell_sequence]
+    mana_costs = [s.mana_cost2 for s in spell_sequence]
+    color_costs = [mc.colored for mc in mana_costs]
+    any_costs = [mc.uncolored for mc in mana_costs]
 
     combined_any_cost = sum(any_costs)
     color2_num = ut.dict_hist(ut.flatten(color_costs))
@@ -91,19 +92,20 @@ def possible_mana_combinations(land_list, deck=None):
         >>> mana_combos = possible_mana_combinations(land_list, deck)
         >>> result = (ut.repr2(mana_combos, nl=1, strvals=True, nobraces=True))
         >>> print(result)
-        (CC, U, G, U, C),
-        (CC, U, G, B, C),
-        (CC, U, U, U, C),
-        (CC, U, U, B, C),
-        (CC, U, G, U, U),
-        (CC, U, G, B, U),
-        (CC, U, U, U, U),
-        (CC, U, U, B, U),
-        (CC, U, G, U, R),
-        (CC, U, G, B, R),
-        (CC, U, U, U, R),
-        (CC, U, U, B, R),
+        ({CC}, {U}, {G}, {U}, {C}),
+        ({CC}, {U}, {G}, {B}, {C}),
+        ({CC}, {U}, {U}, {U}, {C}),
+        ({CC}, {U}, {U}, {B}, {C}),
+        ({CC}, {U}, {G}, {U}, {R}),
+        ({CC}, {U}, {G}, {B}, {R}),
+        ({CC}, {U}, {U}, {U}, {R}),
+        ({CC}, {U}, {U}, {B}, {R}),
+        ({CC}, {U}, {U}, {G}, {C}),
+        ({CC}, {U}, {B}, {U}, {C}),
+        ({CC}, {U}, {U}, {G}, {R}),
+        ({CC}, {U}, {B}, {U}, {R}),
     """
+    from mtgmonte import mtgobjs
     avail_mana = [land.mana_potential2(deck=deck, recurse=False)
                   for land in land_list]
     avail_mana = filter(len, avail_mana)
@@ -115,7 +117,7 @@ def possible_mana_combinations(land_list, deck=None):
     ]
     flags = [len(co) == 0 or len(set(co)) == len(co) for co in non_class1]
     mana_combos2 = ut.compress(mana_combos1, flags)
-    mana_combos3 = [[[c] if isinstance(c, six.string_types) else
+    mana_combos3 = [[[c] if isinstance(c, mtgobjs.ManaSet) else
                      c.mana_potential2(deck=deck)
                      for c in co] for co in mana_combos2]
     unflat_combos3 = [list(ut.iprod(*co)) for co in mana_combos3]

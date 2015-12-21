@@ -20,7 +20,44 @@ TAPPED = _TAPLIKE_UNICODE[-1]
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
-class Mana(object):
+class _ManaBase(object):
+    """
+    Base class for mana objects
+    """
+    def __str__(self):
+        return self.get_str()
+
+    # def __str__(self):
+    #     return self.get_str()
+
+    # def __repr__(self):
+    #     return '<ManaCost' + self.get_str() + '>'
+
+    def __repr__(self):
+        # if self.source is None:
+        return '<{classname} {color}>'.format(classname=self.__class__.__name__, color=self.get_str())
+        # return '<Mana {color} at {addr}>'.format(
+        #     color=self.color, addr=hex(id(self)))
+        # else:
+        #     return '<Mana {color} from {source} at {addr}>'.format(
+        #         color=self.color, source=self.source,
+        #         addr=hex(id(self)))
+
+    def __hash__(self):
+        return hash(ut.hashstr27(self.astuple()))
+
+    def __eq__(self, other):
+        return self.astuple() == other.astuple()
+
+    def __add__(self, other):
+        return self.add(other)
+
+    def __sub__(self, other):
+        return self.sub(other)
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
+class Mana(_ManaBase):
     def __init__(self, color, source=None, num=1):
         if isinstance(color, Mana):
             color = color.color
@@ -42,69 +79,12 @@ class Mana(object):
             ut.printex(ex, 'Error making str', keys=['self.num', 'self.color', 'self.source'])
             raise
 
-    def __str__(self):
-        return self.get_str()
-
-    def __repr__(self):
-        if self.source is None:
-            return '<Mana {color}>'.format(color=self.color)
-            # return '<Mana {color} at {addr}>'.format(
-            #     color=self.color, addr=hex(id(self)))
-        else:
-            return '<Mana {color} from {source} at {addr}>'.format(
-                color=self.color, source=self.source,
-                addr=hex(id(self)))
-
     def astuple(self):
         return (self.color, self.source, self.num)
 
-    def __hash__(self):
-        return hash(self.astuple())
-
-    def __eq__(self, other):
-        return self.astuple() == other.astuple()
-
-
-def ensure_mana_list(manas=None, source=None):
-    #if sources is None:
-    #    source = None
-    #else:
-    #    source = None
-    if manas is None:
-        manas = []
-    elif hasattr(manas, '_manas'):  # isinstance(manas, ManaSet):
-        manas = manas._manas
-    elif isinstance(manas, Mana):  # isinstance(manas, ManaSet):
-        manas = [manas]
-    elif isinstance(manas, dict):  # isinstance(manas, ManaSet):
-        manas = [Mana(color, source, num) for color, num in manas.items()]
-    elif isinstance(manas, six.string_types):
-        colors = manas.strip('{}')
-        manas = [Mana(color, source) for color in colors]
-    elif isinstance(manas, (list, tuple)):
-        manas = ut.flatten([ensure_mana_list(m) for m in manas])
-    else:
-        raise ValueError('Unknown type=%r manas=%r' % (type(manas), manas,))
-    return manas
-
 
 @six.add_metaclass(ut.ReloadingMetaclass)
-class ManaCost(object):
-    """
-    Represents mana costs of spells and abilities. Can represent conditional
-    costs such as hybrid mana, phyrexian mana, delve, and snow mana.
-    """
-    pass
-
-
-@six.add_metaclass(ut.ReloadingMetaclass)
-class ManaPool(object):
-    """ Only represents real colored and uncolored allocations of mana """
-    pass
-
-
-@six.add_metaclass(ut.ReloadingMetaclass)
-class ManaSet(object):
+class ManaSet(_ManaBase):
     """
     CommandLine:
         python -m mtgmonte.mtgobjs --exec-mana_potential2
@@ -124,22 +104,15 @@ class ManaSet(object):
         _manas = ensure_mana_list(manas, sources)
         self._manas = _manas
 
-    def __str__(self):
-        return self.get_str()
-
-    def __repr__(self):
-        return self.get_str()
-        #return '<ManaSet {mana} at {addr}>'.format(
-        #    mana=self.get_str(),
-        #    addr=hex(id(self))
-        #)
-
-    def __getitem__(self, index):
-        return self._manas[index]
+    def astuple(self):
+        return (self._manas,)
 
     def get_str(self):
         body = ''.join([m.get_str() for m in self._manas])
         return '{%s}' % (body,)
+
+    def __getitem__(self, index):
+        return self._manas[index]
 
     def add(self, other):
         """
@@ -186,56 +159,83 @@ class ManaSet(object):
         color2_have = {color: num for color, num in color2_have.items() if num > 0}
         return ManaSet(color2_have)
 
-    def __add__(self, other):
-        return self.add(other)
 
-    def __sub__(self, other):
-        return self.sub(other)
+@six.add_metaclass(ut.ReloadingMetaclass)
+class ManaCost(_ManaBase):
+    r"""
+    Represents mana costs of spells and abilities. Can represent conditional
+    costs such as hybrid mana, phyrexian mana, delve, and snow mana.
+
+    CommandLine:
+        python -m mtgmonte.mtgobjs --exec-ManaCost --show
+
+    Example:
+        >>> from mtgmonte.mtgobjs import *  # NOQA
+        >>> card = load_cards(['Everlasting Torment', 'Spectral Procession'])[0]
+        >>> tokens = card._parse_manacost_tokens()
+        >>> self = ManaCost(tokens)
+        >>> print(self)
+        {2(B/R)}
+
+    """
+    def __init__(self, tokens):
+        vals = ut.get_list_column(tokens, 0)
+        types = ut.get_list_column(tokens, 1)
+        self.type2_manas = dict(ut.group_items(vals, types))
+        if 'uncolored' in self.type2_manas:
+            self.type2_manas['uncolored'] = ut.lmap(int, self.type2_manas['uncolored'])
+
+    def get_str(self):
+        body = ''.join([str(m) for ms in self.type2_manas.values() for m in ms])
+        return '{%s}' % (body,)
+
+    def astuple(self):
+        return (self.type2_manas,)
+
+    @property
+    def colored(self):
+        return self.type2_manas.get('colored', [])
+
+    @property
+    def uncolored(self):
+        return self.type2_manas.get('uncolored', [])
+
+    @property
+    def hybrid(self):
+        return self.type2_manas.get('hybrid', [])
+
+    @property
+    def phyrexian(self):
+        return self.type2_manas.get('phyrexian', [])
 
 
-#@ut.memoize
-@ut.cached_func('lookup_card', appname='mtgmonte_', key_argx=[0])
-def lookup_card_(cardname):
-    print('Lookup cardname = %r' % (cardname,))
-    from mtglib.gatherer_request import SearchRequest
-    from mtglib.card_extractor import CardExtractor
-    from mtglib.card_renderer import CardList
-
-    from mtgmonte import mtgobjs
-    #keys = ['block', 'cmc', 'color', 'colourize', 'exact',
-    #        'exclude_other_colors', 'exclude_other_types', 'flavor', 'format',
-    #        'hidesets', 'json', 'name', 'power', 'random', 'rarity',
-    #        'reminder', 'rulings', 'set', 'special', 'text', 'tough', 'type']
-    request = SearchRequest({'name': cardname, 'exact': True})
-    cards = CardExtractor(request.url).cards
-    double_sided_cards = {
-        'Jace, Vryn\'s Prodigy',
-    }
-    assert len(cards) != 0, 'no match'
-    if len(cards) == 2:
-        # check if double sided.
-        card = cards[0]
-        if card.name in double_sided_cards:
-            card.other_side = cards[1]
-            cards = [card]
-    cards = [card_ for card_ in cards if card_.name == cardname]
-    if len(cards) != 1:
-        cardlist = CardList(cards)
-        cardlist.render()
-        print('cards = %r' % (cards,))
-        assert len(cards) == 1, 'should only be one card'
-    assert len(cards) != 0, 'no match'
-    card2 = mtgobjs.Card2()
-    card2.__dict__.update(cards[0].__dict__)
-    return card2
+@six.add_metaclass(ut.ReloadingMetaclass)
+class ManaPool(ManaSet):
+    """ Only represents real colored and uncolored allocations of mana """
+    pass
 
 
-def lookup_card(cardname):
-    from mtgmonte import mtgobjs
-    card = mtgobjs.lookup_card_(cardname)
-    #card = mtgmonte.lookup_card_(cardname, use_cache=False)
-    card.rrr(verbose=False)
-    return card
+def ensure_mana_list(manas=None, source=None):
+    #if sources is None:
+    #    source = None
+    #else:
+    #    source = None
+    if manas is None:
+        manas = []
+    elif hasattr(manas, '_manas'):  # isinstance(manas, ManaSet):
+        manas = manas._manas
+    elif isinstance(manas, Mana):  # isinstance(manas, ManaSet):
+        manas = [manas]
+    elif isinstance(manas, dict):  # isinstance(manas, ManaSet):
+        manas = [Mana(color, source, num) for color, num in manas.items()]
+    elif isinstance(manas, six.string_types):
+        colors = manas.strip('{}')
+        manas = [Mana(color, source) for color in colors]
+    elif isinstance(manas, (list, tuple)):
+        manas = ut.flatten([ensure_mana_list(m) for m in manas])
+    else:
+        raise ValueError('Unknown type=%r manas=%r' % (type(manas), manas,))
+    return manas
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
@@ -400,72 +400,62 @@ class Card2(Card):
         infodict['heuristic_types'] = heuristic_types
         return infodict
 
-    @property
-    def manacost_colored(card):
-        r"""
-        Returns:
-            ManaSet:
+    def _parse_manacost_tokens(card):
+        """
 
         CommandLine:
-            python -m mtgmonte.mtgobjs --exec-Card2.manacost_colored --show
+            python -m mtgmonte.mtgobjs --exec-Card2._parse_manacost_tokens --show
 
         Example:
             >>> # ENABLE_DOCTEST
             >>> from mtgmonte.mtgobjs import *  # NOQA
-            >>> cards = load_cards(['Cruel Ultimatum', 'Kitchen Finks', 'Gitaxian Probe', 'Spectral Procession'])
+            >>> cards = load_cards(['Naya Hushblade', 'Gitaxian Probe', 'Spectral Procession', 'Emrakul, the Aeons Torn'])
+            >>> print(ut.repr2([card._parse_manacost_tokens() for card in cards], nl=2, nobraces=True))
+
+        """
+        colored_pat = ut.named_field('colored', '[' + MANA_SYMBOLS + ']')
+        uncolored_pat = ut.named_field('uncolored', '[0-9]+', )
+        phyrexian_pat = ut.named_field('phyrexian', '\([' + MANA_SYMBOLS + ']/P\)')
+        hybrid_pat = ut.named_field('hybrid', '\([0-9' + MANA_SYMBOLS + ']/[' + MANA_SYMBOLS + ']\)')
+        patern = ut.regex_or([uncolored_pat, colored_pat, hybrid_pat, phyrexian_pat])
+        groupdicts = [x.groupdict() for x in re.finditer(patern, card.mana_cost)]
+        tokens = [(v, k) for d in groupdicts for k, v in d.items() if v is not None]
+        # tokens = [x.groups() for x in re.finditer(patern, card.mana_cost)]
+        # assert all([len(t) == 1 for t in tokens])
+        # tokens = [t[0] for t in tokens]
+        return tokens
+
+    @property
+    def mana_cost2(card):
+        r"""
+        Returns:
+            ManaCost:
+
+        CommandLine:
+            python -m mtgmonte.mtgobjs --exec-Card2.mana_cost2 --show
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
+            >>> cards = load_cards(['Cruel Ultimatum', 'Kitchen Finks', 'Gitaxian Probe', 'Spectral Procession', 'Emrakul, the Aeons Torn'])
             >>> print(ut.repr2([card.mana_cost for card in cards], nl=1, nobraces=True))
-            >>> result = ut.repr2([card.manacost_colored for card in cards], nl=1, nobraces=True)
+            >>> result = ut.repr2([card.mana_cost2 for card in cards], nl=1, nobraces=True)
             >>> print(result)
             {UUBBBRR},
             {(G/W)(G/W)},
             {(U/P)},
         """
-        import re
-        tokens = [x.groups() for x in re.finditer('([' + MANA_SYMBOLS + ']|\(./.\))', card.mana_cost)]
-        assert all([len(t) == 1 for t in tokens])
-        tokens = [t[0] for t in tokens]
-        return ManaSet([t for t in tokens])
+        tokens = card._parse_manacost_tokens()
+        return ManaCost([t for t in tokens])
         # print(card.mana_cost)
         # return [x for x in card.mana_cost if x in MANA_SYMBOLS]
-        # return ManaSet([x for x in card.mana_cost if x in MANA_SYMBOLS])
-
-    @property
-    def manacost_uncolored(card):
-        r"""
-        rename to manacost any?
-
-        Returns:
-            ManaSet:
-
-        CommandLine:
-            python -m mtgmonte.mtgobjs --exec-Card2.manacost_uncolored --show
-
-        Example:
-            >>> # ENABLE_DOCTEST
-            >>> from mtgmonte.mtgobjs import *  # NOQA
-            >>> cards = load_cards(['Emrakul, the Aeons Torn', 'Kitchen Finks', 'Gitaxian Probe', 'Spectral Procession'])
-            >>> print(ut.repr2([card.mana_cost for card in cards], nobraces=True))
-            >>> result = ut.repr2([card.manacost_uncolored for card in cards], nobraces=True)
-            >>> print(result)
-            15, 1, 0, 0
-        """
-        if not hasattr(card, 'mana_cost'):
-            print('card = %r' % (card,))
-            return 0
-        first_noncolor = re.search('[' + MANA_SYMBOLS + '\(]', card.mana_cost)
-        if first_noncolor is None:
-            start = len(card.mana_cost)
-        else:
-            start = first_noncolor.start()
-        remain = card.mana_cost[:start]
-        cost = int('0' + remain)
-        return cost
+        # return ManaCost([x for x in card.mana_cost if x in MANA_SYMBOLS])
 
     @property
     def cmc(card):
         r"""
         Returns:
-            ManaSet:
+            int: converted mana cost
 
         CommandLine:
             python -m mtgmonte.mtgobjs --exec-Card2.cmc --show
@@ -474,17 +464,19 @@ class Card2(Card):
             >>> # ENABLE_DOCTEST
             >>> from mtgmonte.mtgobjs import *  # NOQA
             >>> cards = load_cards(['Emrakul, the Aeons Torn', 'Kitchen Finks', 'Gitaxian Probe', 'Spectral Procession'])
-            >>> print(ut.repr2([card.converted_mana_cost for card in cards]))
+            >>> #print(ut.repr2([card.converted_mana_cost for card in cards]))
             >>> result = ut.repr2([card.cmc for card in cards], nobraces=True)
             >>> print(result)
+            15, 3, 1, 6
         """
         if len(card.mana_cost) > 0:
             try:
-                return int(card.converted_mana_cost)
+                cmc = int(card.converted_mana_cost)
             except AttributeError:
-                return len(card.mana_cost)
+                cmc = len(card.mana_cost)
         else:
-            return 0
+            cmc = 0
+        return cmc
 
     @property
     def heuristic_types(card):
@@ -632,6 +624,7 @@ class Card2(Card):
         Example:
             >>> # ENABLE_DOCTEST
             >>> from mtgmonte import mtgobjs
+            >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
             >>> cards = mtgobjs.load_cards(['Tundra', 'Ancient Tomb', 'Black Lotus'])
             >>> card = cards[-1]
             >>> result = ut.repr2([card.mana_potential2(deck) for card in cards])
@@ -679,7 +672,7 @@ class Card2(Card):
             [x.strip('{}') if isinstance(x, six.string_types) else x for x in xs]
             for xs in mana_generated])
         if recurse:
-            return [ManaSet(mana) for mana in mana_potential2]
+            return [ManaPool(mana) for mana in mana_potential2]
         else:
             return mana_potential2
 
@@ -865,6 +858,50 @@ def load_list(decklist_text, mydiff):
                     new_cardlist.remove(card_)
         deck = Deck(new_cardlist)
     return deck
+
+
+#@ut.memoize
+@ut.cached_func('lookup_card', appname='mtgmonte_', key_argx=[0])
+def lookup_card_(cardname):
+    print('Lookup cardname = %r' % (cardname,))
+    from mtglib.gatherer_request import SearchRequest
+    from mtglib.card_extractor import CardExtractor
+    from mtglib.card_renderer import CardList
+    from mtgmonte import mtgobjs
+    #keys = ['block', 'cmc', 'color', 'colourize', 'exact',
+    #        'exclude_other_colors', 'exclude_other_types', 'flavor', 'format',
+    #        'hidesets', 'json', 'name', 'power', 'random', 'rarity',
+    #        'reminder', 'rulings', 'set', 'special', 'text', 'tough', 'type']
+    request = SearchRequest({'name': cardname, 'exact': True})
+    cards = CardExtractor(request.url).cards
+    double_sided_cards = {
+        'Jace, Vryn\'s Prodigy',
+    }
+    assert len(cards) != 0, 'no match'
+    if len(cards) == 2:
+        # check if double sided.
+        card = cards[0]
+        if card.name in double_sided_cards:
+            card.other_side = cards[1]
+            cards = [card]
+    cards = [card_ for card_ in cards if card_.name == cardname]
+    if len(cards) != 1:
+        cardlist = CardList(cards)
+        cardlist.render()
+        print('cards = %r' % (cards,))
+        assert len(cards) == 1, 'should only be one card'
+    assert len(cards) != 0, 'no match'
+    card2 = mtgobjs.Card2()
+    card2.__dict__.update(cards[0].__dict__)
+    return card2
+
+
+def lookup_card(cardname):
+    from mtgmonte import mtgobjs
+    card = mtgobjs.lookup_card_(cardname)
+    #card = mtgmonte.lookup_card_(cardname, use_cache=False)
+    card.rrr(verbose=False)
+    return card
 
 
 if __name__ == '__main__':
