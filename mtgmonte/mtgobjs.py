@@ -17,9 +17,14 @@ MANA_SYMBOLS = 'WUBRG'
 PERMANENT_TYPES = {'Artifact', 'Creature', 'Enchantment', 'Land', 'Planeswalker'}
 _TAPLIKE_UNICODE = ['⟳', '↷']
 TAPPED = _TAPLIKE_UNICODE[-1]
+COLOR_ORDER = {sym: count for count, sym in enumerate(MANA_SYMBOLS + 'C')}
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
+class NotEnoughManaError(Exception):
+    pass
+
+
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class _ManaBase(object):
     """
     Base class for mana objects
@@ -53,8 +58,16 @@ class _ManaBase(object):
     def __add__(self, other):
         return self.add(other)
 
+    def __radd__(self, other):
+        if other == 0:
+            return self
+        return self + other
+
     def __sub__(self, other):
         return self.sub(other)
+
+    def __rsub__(self, other):
+        return other.sub(self)
 
 
 class ManaOption(list):
@@ -75,10 +88,7 @@ class ManaOption(list):
             classname=self.__class__.__name__, str_=self.get_str())
 
 
-COLOR_ORDER = {sym: count for count, sym in enumerate(MANA_SYMBOLS + 'C')}
-
-
-@six.add_metaclass(ut.ReloadingMetaclass)
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class Mana(_ManaBase):
     def __init__(self, color, source=None, num=1):
         if isinstance(color, Mana):
@@ -101,6 +111,12 @@ class Mana(_ManaBase):
             ut.printex(ex, 'Error making str', keys=['self.num', 'self.color', 'self.source'])
             raise
 
+    def __eq__(self, other):
+        if isinstance(other, six.string_types):
+            return self.num == 1 and self.color == other
+        else:
+            return self.astuple() == other.astuple()
+
     def __gt__(self, other):
         return COLOR_ORDER[self.color] > COLOR_ORDER[other.color]
 
@@ -111,7 +127,7 @@ class Mana(_ManaBase):
         return (self.color, self.source, self.num)
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class ManaSet(_ManaBase):
     """
     CommandLine:
@@ -126,7 +142,6 @@ class ManaSet(_ManaBase):
         >>> print(result)
         mana = {CCUUR}
     """
-
     def __init__(self, manas=None, sources=None):
         # TODO: use a dict representation instead?
         _manas = ensure_mana_list(manas, sources)
@@ -150,6 +165,9 @@ class ManaSet(_ManaBase):
         else:
             return False
 
+    def get_colordict(self):
+        color2_num = ut.dict_hist([m.color for m in self._manas for _ in range(m.num)])
+        return color2_num
 
     def add(self, other):
         """
@@ -170,7 +188,8 @@ class ManaSet(_ManaBase):
     def sub(self, other):
         """
         CommandLine:
-            python -m mtgmonte.mtgobjs --exec-ManaSet.sub
+            python -m mtgmonte.mtgobjs --exec-ManaSet.sub:0
+            python -m mtgmonte.mtgobjs --exec-ManaSet.sub:1
 
         Example:
             >>> # ENABLE_DOCTEST
@@ -182,22 +201,43 @@ class ManaSet(_ManaBase):
             >>> result = ('mana = %r' % (mana,))
             >>> print(result)
             mana = {RC}
+
+        Example:
+            >>> from mtgmonte.mtgobjs import *  # NOQA
+            >>> self = ManaSet(['WWURC'])
+            >>> other = ManaCost([('W', 'colored'), ('W', 'colored'), ('U', 'colored'), ('1', 'uncolored')])
+            >>> mana = self - other
+            >>> result = ('mana = %r' % (mana,))
+            >>> print(result)
         """
-        color2_num = ut.dict_hist(other._manas)
-        color2_have = ut.dict_hist(self._manas)
-        color2_have = ut.ddict(lambda: 0, color2_have)
-        for color, num_need in color2_num.items():
-            num_have = color2_have[color]
-            if num_have < num_need:
-                raise ValueError('Cannot subtract more mana from less')
-            color2_have[color] -= num_need
-        # new_manas = ensure_mana_list(color2_have)
-        # print('new_manas = %r' % (new_manas,))
-        color2_have = {color: num for color, num in color2_have.items() if num > 0}
-        return ManaSet(color2_have)
+        if isinstance(other, ManaCost):
+            colored_cost = ManaSet(other.type2_manas['colored'])
+            remainder1 = self.sub(colored_cost)
+            color2_remain = remainder1.get_colordict()
+            uncolored_need = sum(other.type2_manas['uncolored'])
+            # TODO: value different colors differently for payment
+            if uncolored_need > 0:
+                for color in list(color2_remain.keys()):
+                    using = min(uncolored_need, color2_remain[color])
+                    color2_remain[color] -= using
+                    uncolored_need -= using
+            if uncolored_need > 0:
+                raise NotEnoughManaError('Cannot subtract more mana from less')
+            # Todo hybrid / phyrexian
+        else:
+            color2_need = ut.dict_hist(other._manas)
+            color2_remain = ut.ddict(lambda: 0, ut.dict_hist(self._manas))
+            for color, num_need in color2_need.items():
+                num_have = color2_remain[color]
+                if num_have < num_need:
+                    raise NotEnoughManaError('Cannot subtract more mana from less')
+                color2_remain[color] -= num_need
+        color2_remain = delete_dict_zeros(color2_remain)
+        remainder = ManaSet(color2_remain)
+        return remainder
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class ManaCost(_ManaBase):
     r"""
     Represents mana costs of spells and abilities. Can represent conditional
@@ -210,10 +250,11 @@ class ManaCost(_ManaBase):
         >>> from mtgmonte.mtgobjs import *  # NOQA
         >>> card = load_cards(['Everlasting Torment', 'Spectral Procession'])[0]
         >>> tokens = card._parse_manacost_tokens()
+        >>> print('tokens = %r' % (tokens,))
         >>> self = ManaCost(tokens)
         >>> print(self)
+        >>> print(self.hybrid)
         {2(B/R)}
-
     """
     def __init__(self, tokens):
         vals = ut.get_list_column(tokens, 0)
@@ -226,27 +267,50 @@ class ManaCost(_ManaBase):
         body = ''.join([str(m) for ms in self.type2_manas.values() for m in ms])
         return '{%s}' % (body,)
 
+    def satisfies(self, manaset):
+        try:
+            remain = manaset.sub(self)
+        except NotEnoughManaError:
+            return False
+        else:
+            return True
+
+    #def to_manaset(self):
+    #    ManaSet(self.type2_manas['colored'] + self.type2_manas['uncolored'])
+
     def astuple(self):
         return (self.type2_manas,)
 
+    def __len__(self):
+        return sum(map(len, self.type2_manas.values()))
+
+    def add(self, other):
+        return ManaCost(self.get_tokens() + other.get_tokens())
+
+    def get_tokens(self):
+        tokens = [(color, type_)
+                  for type_, color_list in self.type2_manas.items()
+                  for color in color_list]
+        return tokens
+
     @property
     def colored(self):
-        return self.type2_manas.get('colored', [])
+        return ManaCost([(c, 'colored') for c in self.type2_manas.get('colored', [])])
 
     @property
     def uncolored(self):
-        return self.type2_manas.get('uncolored', [])
+        return ManaCost([(c, 'uncolored') for c in self.type2_manas.get('uncolored', [])])
 
     @property
     def hybrid(self):
-        return self.type2_manas.get('hybrid', [])
+        return ManaCost([(c, 'hybrid') for c in self.type2_manas.get('hybrid', [])])
 
     @property
     def phyrexian(self):
-        return self.type2_manas.get('phyrexian', [])
+        return ManaCost([(c, 'phyrexian') for c in self.type2_manas.get('phyrexian', [])])
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class ManaPool(ManaSet):
     """ Only represents real colored and uncolored allocations of mana """
     def __init__(self, *args, **kwargs):
@@ -254,6 +318,7 @@ class ManaPool(ManaSet):
 
 
 def ensure_mana_list(manas=None, source=None):
+    from mtgmonte import mtgobjs
     #if sources is None:
     #    source = None
     #else:
@@ -262,21 +327,26 @@ def ensure_mana_list(manas=None, source=None):
         manas = []
     elif hasattr(manas, '_manas'):  # isinstance(manas, ManaSet):
         manas = manas._manas
-    elif isinstance(manas, Mana):  # isinstance(manas, ManaSet):
+    #elif isinstance(manas, mtgobjs.Mana):  # isinstance(manas, ManaSet):
+    elif hasattr(manas, 'color'):
         manas = [manas]
     elif isinstance(manas, dict):  # isinstance(manas, ManaSet):
-        manas = [Mana(color, source, num) for color, num in manas.items()]
+        manas = [mtgobjs.Mana(color, source, num) for color, num in manas.items()]
     elif isinstance(manas, six.string_types):
         colors = manas.strip('{}')
-        manas = [Mana(color, source) for color in colors]
+        manas = [mtgobjs.Mana(color, source) for color in colors]
     elif isinstance(manas, (list, tuple)):
         manas = ut.flatten([ensure_mana_list(m) for m in manas])
     else:
-        raise ValueError('Unknown type=%r manas=%r' % (type(manas), manas,))
+        print('mtgobjs.Mana = %r' % (mtgobjs.Mana,))
+        print('type(manas)  = %r' % (type(manas),))
+        print(type(manas) is mtgobjs.Mana)
+        print(isinstance(manas, mtgobjs.Mana))
+        raise ValueError('Cannot ensure unknown type=%r, manas=%r' % (type(manas), manas,))
     return manas
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class Deck(object):
     """
     from mtgmonte.mtgobjs import *  # NOQA
@@ -346,7 +416,7 @@ class Deck(object):
 
 
 #ut.reloading_metacl
-@six.add_metaclass(ut.ReloadingMetaclass)
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class Card2(Card):
     """
     cd ~/code/mtgmonte
@@ -940,8 +1010,15 @@ def lookup_card(cardname):
     from mtgmonte import mtgobjs
     card = mtgobjs.lookup_card_(cardname)
     #card = mtgmonte.lookup_card_(cardname, use_cache=False)
-    card.rrr(verbose=False)
+    #card.rrr(verbose=False)
     return card
+
+
+def delete_dict_zeros(dict_):
+    for key, val in list(dict_.items()):
+        if val == 0:
+            del dict_[key]
+    return dict_
 
 
 if __name__ == '__main__':

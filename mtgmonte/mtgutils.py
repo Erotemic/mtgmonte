@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import utool as ut
 import itertools
 import six
+import operator
 print, rrr, profile = ut.inject2(__name__, '[mtgutils]')
 
 
@@ -20,6 +21,8 @@ def can_cast(spell_sequence, mana_combos):
 
     CommandLine:
         python -m mtgmonte.mtgutils --exec-can_cast
+        python -m mtgmonte.mtgutils --exec-can_cast:0
+        python -m mtgmonte.mtgutils --exec-can_cast:1
 
     Setup:
         >>> # DISABLE_DOCTEST
@@ -31,7 +34,7 @@ def can_cast(spell_sequence, mana_combos):
 
     Example0:
         >>> # ENABLE_DOCTEST
-        >>> spell_sequence = mtgobjs.load_cards(['White Knight'])
+        >>> spell_sequence = mtgobjs.load_cards(['White Knight', 'Delver of Secrets'])
         >>> valid = can_cast(spell_sequence, mana_combos)
         >>> result = ('valid = %s' % (str(valid),))
         >>> print(result)
@@ -46,32 +49,17 @@ def can_cast(spell_sequence, mana_combos):
         valid = True
     """
     mana_costs = [s.mana_cost2 for s in spell_sequence]
-    color_costs = [mc.colored for mc in mana_costs]
-    any_costs = [mc.uncolored for mc in mana_costs]
+    combined_cost = sum(mana_costs)
 
-    combined_any_cost = sum(any_costs)
-    color2_num = ut.dict_hist(ut.flatten(color_costs))
-
-    valid = True
+    valid = False
+    import operator
     for mana_combo in mana_combos:
-        color2_have = ut.dict_hist(mana_combo)
-        color2_have = ut.ddict(lambda: 0, color2_have)
-        valid = True
-
-        for color, num_need in color2_num.items():
-            num_have = color2_have[color]
-            if num_have < num_need:
-                valid = False
-                break
-            color2_have[color] -= num_need
-
-        num_leftover = sum(color2_have.values())
-        if num_leftover < combined_any_cost:
-            valid = False
-
-        if valid:
+        print('mana_combo = %r' % (mana_combo,))
+        combo2 = reduce(operator.add, mana_combo)
+        # TODO: phyrexian / hybrid
+        if combined_cost.satisfies(combo2):
+            valid = True
             break
-
     return valid
 
 
@@ -118,7 +106,6 @@ def possible_mana_combinations(land_list, deck=None):
                      for c in co] for co in mana_combos2]
     unflat_combos3 = [list(ut.iprod(*co)) for co in mana_combos3]
     mana_combos4 = ut.flatten(unflat_combos3)
-    import operator
     #mana_combos4 = [reduce(operator.add, m) for m in mana_combos4]
     #z = reduce(operator.add, m)
     #import utool
