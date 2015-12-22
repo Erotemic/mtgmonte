@@ -17,6 +17,9 @@ DEV_REQUIREMENTS = [
 
 
 INSTALL_REQUIRES = [
+    'lxml',  # need http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml
+    'mtg',
+    # pip install git+git://github.com/chigby/mtg.git@master
     #'utool >= 0.21.1',
 ]
 

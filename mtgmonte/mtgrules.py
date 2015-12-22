@@ -40,8 +40,7 @@ def is_ability_block(block):
 
 def mana_generated(block, card, new=False):
     r"""
-    from mtgmonte import mtgrules
-    from mtgmonte.mtgrules import *  # NOQA
+    Parse the string representation of mana generated
 
     CommandLine:
         python -m mtgmonte.mtgrules --exec-mana_generated --show
@@ -106,7 +105,8 @@ def mana_generated(block, card, new=False):
                     num = english_number(numtxt)
                     from itertools import combinations
                     mana_generated += ['{' + ''.join(comb) + '}' for comb in combinations(COLOR_SYMS, num)]
-                for x in re.finditer(_fill('num') + ' mana of any of the ' + _fill('refcard') + ' colors', manatext):
+                for x in re.finditer(_fill('num') + ' mana of any of the ' +
+                                     _fill('refcard') + ' colors', manatext):
                     #print(x.groupdict())
                     num = english_number(x.groupdict()['num'])
                     refcard = x.groupdict()['refcard']
@@ -137,7 +137,7 @@ def mana_generated(block, card, new=False):
             mana_generated = None
     if mana_generated is not None:
         from mtgmonte import mtgobjs
-        mana_generated = [mtgobjs.ManaSet(manas) for manas in mana_generated]
+        mana_generated = mtgobjs.ManaOption([mtgobjs.ManaSet(manas) for manas in mana_generated])
     return mana_generated
 
 
@@ -166,61 +166,20 @@ class RuleHeuristics(object):
 
     @classmethod
     def mana_generated(cls, block, card):
-        """
-        from mtgmonte import mtgrules
-        from mtgmonte.mtgrules import *  # NOQA
-        cls = mtgrules.RuleHeuristics
-
-        CommandLine:
-            python -m mtgmonte.mtgrules --exec-mana_generated --show
-
-        Example:
-            >>> # DISABLE_DOCTEST
-            >>> from mtgmonte.mtgrules import *  # NOQA
-            >>> from mtgmonte import mtgobjs
-            >>> cls = RuleHeuristics
-            >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb', 'Black Lotus', 'Mox Lotus'])
-            >>> for card in cards[:-1]:
-            >>>     print(cls.mana_generated(card.ability_blocks[0], card))
-            >>> card = cards[1]
-            >>> card = cards[-1]
-            >>> block = card.ability_blocks[0]
-            >>> result = cls.mana_generated(block, card)
-            >>> print(result)
-        """
         return mana_generated(block, card)
 
     @classmethod
     def is_triland(cls, block, card):
-        mana = cls.mana_generated(block, card)
+        mana = mana_generated(block, card)
         return mana is not None and len(mana) == 3
 
     @classmethod
     def is_fetchland(cls, block, card):
-        return cls.get_fetched_lands(block, card) is not None
+        return is_fetchland(block, card)
 
     @classmethod
     def get_fetched_lands(cls, block, card):
-        fetch_regex = (
-            'Search your library for an? ' +
-            cls._fill('landtypes') +
-            ' card and put it onto the battlefield' +
-            ut.named_field('istapped', ' tapped') +
-            '?')
-        match = re.search(fetch_regex, block)
-        valid_types = None
-        if match is not None:
-            groupdict = match.groupdict()
-            landtypes = groupdict['landtypes'].split(' or ')
-            valid_types = [
-                [x.lower() for x in type_.split(' ')]
-                for type_ in landtypes
-            ]
-
-            #landtypes = groupdict['landtypes'].split(' or ')
-            #if groupdict['istapped']:
-            #    landtypes = ['tap-' + type_ for type_ in landtypes]
-        return valid_types
+        return get_fetched_lands(block, card)
 
     @classmethod
     def is_tapland(cls, block, card):
@@ -266,6 +225,35 @@ def get_fetch_search_targets(effect, card, deck=None):
                 if ut.is_subset(type_, alltypes):
                     targets += [card]
     return targets
+
+
+def get_fetched_lands(block, card):
+    fetch_regex = (
+        'Search your library for an? ' +
+        _fill('landtypes') +
+        ' card and put it onto the battlefield' +
+        ut.named_field('istapped', ' tapped') +
+        '?')
+    match = re.search(fetch_regex, block)
+    valid_types = None
+    if match is not None:
+        groupdict = match.groupdict()
+        landtypes = groupdict['landtypes'].split(' or ')
+        valid_types = [
+            [x.lower() for x in type_.split(' ')]
+            for type_ in landtypes
+        ]
+
+        #landtypes = groupdict['landtypes'].split(' or ')
+        #if groupdict['istapped']:
+        #    landtypes = ['tap-' + type_ for type_ in landtypes]
+    return valid_types
+
+
+def is_fetchland(block, card):
+    return get_fetched_lands(block, card) is not None
+
+
 
 
 if __name__ == '__main__':

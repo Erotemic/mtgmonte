@@ -12,15 +12,15 @@ pip install mtg
 
 cd ~/code/mtgmonte
 
-            if False:
-                for opname, opfunc in op.__dict__.items():
-                    if opfunc.__doc__ is not None:
-                        match = re.search('Same as a *(?P<op>.*?) *b.', opfunc.__doc__)
-                        if match:
-                            print(match.groupdict())
-                            #print(opfunc)
-                            print(opfunc.__doc__)
-                            print('----')
+if False:
+    for opname, opfunc in op.__dict__.items():
+        if opfunc.__doc__ is not None:
+            match = re.search('Same as a *(?P<op>.*?) *b.', opfunc.__doc__)
+            if match:
+                print(match.groupdict())
+                #print(opfunc)
+                print(opfunc.__doc__)
+                print('----')
 """
 from __future__ import absolute_import, division, print_function, unicode_literals
 import six

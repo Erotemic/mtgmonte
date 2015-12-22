@@ -9,7 +9,7 @@ from mtgmonte import mtgrules
 import copy
 from mtglib.card_renderer import Card
 #from six.moves import
-ut.util_cache.VERBOSE_CACHE = False
+#ut.util_cache.VERBOSE_CACHE = False
 print, rrr, profile = ut.inject2(__name__, '[mtgobjs]')
 
 
@@ -35,7 +35,8 @@ class _ManaBase(object):
 
     def __repr__(self):
         # if self.source is None:
-        return '<{classname} {color}>'.format(classname=self.__class__.__name__, color=self.get_str())
+        return '<{classname} {str_}>'.format(
+            classname=self.__class__.__name__, str_=self.get_str())
         # return '<Mana {color} at {addr}>'.format(
         #     color=self.color, addr=hex(id(self)))
         # else:
@@ -54,6 +55,27 @@ class _ManaBase(object):
 
     def __sub__(self, other):
         return self.sub(other)
+
+
+class ManaOption(list):
+    def get_str(self):
+        return '[' + ', '.join([
+            #item.get_str()
+            str(item)
+            #if isinstance(item, ManaSet) else
+            if hasattr(item, 'get_str') else
+            repr(item)
+            for item in self]) + ']'
+
+    def __str__(self):
+        return self.get_str()
+
+    def __repr__(self):
+        return '<{classname} {str_}>'.format(
+            classname=self.__class__.__name__, str_=self.get_str())
+
+
+COLOR_ORDER = {sym: count for count, sym in enumerate(MANA_SYMBOLS + 'C')}
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
@@ -79,6 +101,12 @@ class Mana(_ManaBase):
             ut.printex(ex, 'Error making str', keys=['self.num', 'self.color', 'self.source'])
             raise
 
+    def __gt__(self, other):
+        return COLOR_ORDER[self.color] > COLOR_ORDER[other.color]
+
+    def __lt__(self, other):
+        return COLOR_ORDER[self.color] < COLOR_ORDER[other.color]
+
     def astuple(self):
         return (self.color, self.source, self.num)
 
@@ -87,7 +115,7 @@ class Mana(_ManaBase):
 class ManaSet(_ManaBase):
     """
     CommandLine:
-        python -m mtgmonte.mtgobjs --exec-mana_potential2
+        python -m mtgmonte.mtgobjs --exec-ManaSet
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -102,7 +130,7 @@ class ManaSet(_ManaBase):
     def __init__(self, manas=None, sources=None):
         # TODO: use a dict representation instead?
         _manas = ensure_mana_list(manas, sources)
-        self._manas = _manas
+        self._manas = sorted(_manas)
 
     def astuple(self):
         return (self._manas,)
@@ -113,6 +141,15 @@ class ManaSet(_ManaBase):
 
     def __getitem__(self, index):
         return self._manas[index]
+
+    def __gt__(self, other):
+        if len(self._manas) > len(other._manas):
+            return True
+        elif len(self._manas) == len(other._manas):
+            return self._manas[0] > other._manas[0]
+        else:
+            return False
+
 
     def add(self, other):
         """
@@ -144,7 +181,7 @@ class ManaSet(_ManaBase):
             >>> mana = self - other
             >>> result = ('mana = %r' % (mana,))
             >>> print(result)
-            mana = {CR}
+            mana = {RC}
         """
         color2_num = ut.dict_hist(other._manas)
         color2_have = ut.dict_hist(self._manas)
@@ -212,7 +249,8 @@ class ManaCost(_ManaBase):
 @six.add_metaclass(ut.ReloadingMetaclass)
 class ManaPool(ManaSet):
     """ Only represents real colored and uncolored allocations of mana """
-    pass
+    def __init__(self, *args, **kwargs):
+        super(self, ManaPool).__init__(*args, **kwargs)
 
 
 def ensure_mana_list(manas=None, source=None):
@@ -517,7 +555,7 @@ class Card2(Card):
             if RuleHeuristics.is_painland(block, card):
                 heuristic_types += ['pain']
 
-            if RuleHeuristics.is_fetchland(block, card):
+            if mtgrules.is_fetchland(block, card):
                 heuristic_types += ['fetch']
 
         return heuristic_types, heuristic_subtypes
@@ -615,11 +653,10 @@ class Card2(Card):
         #return blocks
 
     def mana_potential2(card, deck=None, recurse=True):
-        """
-        cd ~/code/mtgmonte
+        r"""Returns a list of mana sets or mana producers
 
         CommandLine:
-            python -m mtgmonte.mtgobjs --exec-mana_potential2
+            python -m mtgmonte.mtgobjs --exec-mana_potential2:1
 
         Example:
             >>> # ENABLE_DOCTEST
@@ -628,7 +665,7 @@ class Card2(Card):
             >>> cards = mtgobjs.load_cards(['Tundra', 'Ancient Tomb', 'Black Lotus'])
             >>> card = cards[-1]
             >>> result = ut.repr2([card.mana_potential2(deck) for card in cards])
-            >>> print(result)
+            >>> print(str(result))
 
         Example:
             >>> # ENABLE_DOCTEST
@@ -636,11 +673,14 @@ class Card2(Card):
             >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
             >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb'])
             >>> card = cards[-1]
-            >>> result = ut.repr2([card.mana_potential2(deck) for card in cards])
+            >>> result = ut.repr2([card.mana_potential2(deck, recurse=True)
+            >>>                    for card in cards], nl=1, strvals=1, nobr=1)
             >>> print(result)
-            [[UUBGU], [WU], [U], [CUR], [CC]]
-
-            [['B', 'U', 'G'], ['W', 'U'], ['U'], ['C', 'U', 'R'], ['CC']]
+            [{G}, {U}, {B}],
+            [{W}, {U}],
+            [{U}],
+            [{C}, {U}, {R}],
+            [{CC}],
 
         Example:
             >>> # ENABLE_DOCTEST
@@ -648,33 +688,33 @@ class Card2(Card):
             >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
             >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb'])
             >>> card = cards[-1]
-            >>> result = ut.repr2([card.mana_potential2(deck, recurse=False) for card in cards])
+            >>> result = ut.repr2([card.mana_potential2(deck, recurse=False)
+            >>>                    for card in cards], nl=1, strvals=True, nobr=1)
             >>> print(result)
-            [[<Tropical Island>, <Sunken Hollow>, <Island>], ['W', 'U'], ['U'], ['C', 'U', 'R'], ['CC']]
+            [Tropical Island, Sunken Hollow, Island],
+            [{W}, {U}],
+            [{U}],
+            [{C}, {U}, {R}],
+            [{CC}],
         """
         from mtgmonte import mtgrules
-        mana_generated = [mtgrules.mana_generated(block, card)
-                          for block in card.ability_blocks]
-        if mtgrules.RuleHeuristics.is_fetchland(block, card):
-            from mtgmonte import mtgrules
-            fetch_targets = [
-                mtgrules.get_fetch_search_targets(block, card, deck)
-                for block in card.ability_blocks]
-            if recurse:
-                mana_generated = [
-                    list(set(ut.flatten([t.mana_potential2(deck) for t in ts]))) for ts in fetch_targets
-                ]
+        potential = ManaOption()
+        #ManaOption()
+        for block in card.ability_blocks:
+            mana_generated = mtgrules.mana_generated(block, card)
+            if mana_generated is not None:
+                potential.extend(mana_generated)
             else:
-                mana_generated = fetch_targets
-
-        # TODO: use more than one iteration
-        mana_potential2 = ut.flatten([
-            [x.strip('{}') if isinstance(x, six.string_types) else x for x in xs]
-            for xs in mana_generated])
-        if recurse:
-            return [ManaPool(mana) for mana in mana_potential2]
-        else:
-            return mana_potential2
+                if mtgrules.is_fetchland(block, card):
+                    fetch_targets = mtgrules.get_fetch_search_targets(block, card, deck)
+                    if recurse:
+                        mana_generated = [t.mana_potential2(deck) for t in fetch_targets]
+                        mana_generated = ut.flatten(mana_generated)
+                        mana_generated = ut.unique_ordered(mana_generated)
+                        potential.extend(ManaOption(mana_generated))
+                    else:
+                        potential.extend(fetch_targets)
+        return potential
 
     def mana_source_stats(card, deck=None):
         rule_blocks = card.rules_text.split(';')
@@ -861,7 +901,7 @@ def load_list(decklist_text, mydiff):
 
 
 #@ut.memoize
-@ut.cached_func('lookup_card', appname='mtgmonte_', key_argx=[0])
+@ut.cached_func('lookup_card', appname='mtgmonte_', key_argx=[0], verbose=False)
 def lookup_card_(cardname):
     print('Lookup cardname = %r' % (cardname,))
     from mtglib.gatherer_request import SearchRequest

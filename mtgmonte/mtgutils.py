@@ -100,10 +100,6 @@ def possible_mana_combinations(land_list, deck=None):
         ({CC}, {U}, {G}, {B}, {R}),
         ({CC}, {U}, {U}, {U}, {R}),
         ({CC}, {U}, {U}, {B}, {R}),
-        ({CC}, {U}, {U}, {G}, {C}),
-        ({CC}, {U}, {B}, {U}, {C}),
-        ({CC}, {U}, {U}, {G}, {R}),
-        ({CC}, {U}, {B}, {U}, {R}),
     """
     from mtgmonte import mtgobjs
     avail_mana = [land.mana_potential2(deck=deck, recurse=False)
@@ -122,7 +118,11 @@ def possible_mana_combinations(land_list, deck=None):
                      for c in co] for co in mana_combos2]
     unflat_combos3 = [list(ut.iprod(*co)) for co in mana_combos3]
     mana_combos4 = ut.flatten(unflat_combos3)
-
+    import operator
+    #mana_combos4 = [reduce(operator.add, m) for m in mana_combos4]
+    #z = reduce(operator.add, m)
+    #import utool
+    #utool.embed()
     # avail_mana = [land.mana_potential(deck=deck) for land in land_list]
     # avail_mana = filter(len, avail_mana)
     # mana_combos4 = list(ut.iprod(*avail_mana))
