@@ -30,7 +30,7 @@ class ManaOption(list):
         return '[' + ', '.join([
             #item.get_str()
             str(item)
-            #if isinstance(item, ManaSet) else
+            #if isinstance(item, Ma naSet) else
             if hasattr(item, 'get_str') else
             repr(item)
             for item in self]) + ']'
@@ -124,7 +124,7 @@ class Mana(ManaBase_):
                 type_ = 'uncolored'
             else:
                 tokens = tokenize_manacost(color)
-                assert len(tokens) == 1, 'mana must be homogeneous'
+                assert len(tokens) == 1, 'mana must be homogeneous. color=%r' % (color,)
                 color, type_ = tokens[0]
         self.type_ = type_
         if self.type_ == 'hybrid':
@@ -198,16 +198,16 @@ class Mana(ManaBase_):
 class ManaSet(ManaBase_):
     """
     CommandLine:
-        python -m mtgmonte.mtgobjs --exec-ManaSet
+        python -m mtgmonte.mtgobjs --test-ManaSet
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from mtgmonte.mtgobjs import *
         >>> from mtgmonte import mtgobjs
         >>> mana = mtgobjs.ManaSet('CCUUR')
-        >>> result = ('mana = %r' % (mana,))
+        >>> result = ('mana = %s' % (mana,))
         >>> print(result)
-        mana = {CCUUR}
+        mana = {UURCC}
     """
     def __init__(self, manas=None, sources=None):
         # TODO: use a dict representation instead?
@@ -238,6 +238,9 @@ class ManaSet(ManaBase_):
 
     def add(self, other):
         """
+        CommandLine:
+            python -m mtgmonte.mtgobjs --test-ManaSet.add --show
+
         Example:
             >>> # ENABLE_DOCTEST
             >>> from mtgmonte.mtgobjs import *
@@ -245,7 +248,7 @@ class ManaSet(ManaBase_):
             >>> self = mtgobjs.ManaSet('R')
             >>> other = mtgobjs.ManaSet('G')
             >>> mana = self + other
-            >>> result = ('mana = %r' % (mana,))
+            >>> result = ('mana = %s' % (mana,))
             >>> print(result)
             mana = {RG}
         """
@@ -265,7 +268,7 @@ class ManaSet(ManaBase_):
             >>> self = mtgobjs.ManaSet('RRRUC')
             >>> other = mtgobjs.ManaSet('RRU')
             >>> mana = self - other
-            >>> result = ('mana = %r' % (mana,))
+            >>> result = ('mana = %s' % (mana,))
             >>> print(result)
             mana = {RC}
 
@@ -274,11 +277,11 @@ class ManaSet(ManaBase_):
             >>> self = ManaSet(['WWURC'])
             >>> other = ManaCost([('W', 'colored'), ('W', 'colored'), ('U', 'colored'), ('1', 'uncolored')])
             >>> mana = self - other
-            >>> result = ('mana = %r' % (mana,))
+            >>> result = ('mana = %s' % (mana,))
             >>> print(result)
         """
         if isinstance(other, ManaCost):
-            colored_cost = other.colored
+            colored_cost = other.colored.to_manaset()
             remainder1 = self.sub(colored_cost)
             color2_remain = remainder1.get_colordict()
             uncolored_need = other.num_uncolored
@@ -399,13 +402,16 @@ class ManaCost(ManaBase_):
                       for color in color_list]
         else:
             tokens = [(color, type_)
-                      for type_, color_list in ut.dict_subset(self.type2_manas, types).items()
+                      for type_, color_list in ut.dict_subset(self.type2_manas, types, []).items()
                       for color in color_list]
         return tokens
 
     def _to_manas(self):
         tokens = self.get_tokens()
         return [Mana(color, type_=type_) for color, type_ in tokens]
+
+    def to_manaset(self):
+        return ManaSet(self._to_manas())
 
     @property
     def colored(self):
@@ -485,10 +491,6 @@ def ensure_mana_list(manas=None, source=None):
     elif isinstance(manas, (list, tuple)):
         manas = ut.flatten([ensure_mana_list(m) for m in manas])
     else:
-        print('mtgobjs.Mana = %r' % (mtgobjs.Mana,))
-        print('type(manas)  = %r' % (type(manas),))
-        print(type(manas) is mtgobjs.Mana)
-        print(isinstance(manas, mtgobjs.Mana))
         raise ValueError('Cannot ensure unknown type=%r, manas=%r' % (type(manas), manas,))
     return manas
 
@@ -671,9 +673,11 @@ class Card2(Card):
             >>> print(ut.repr2([card.mana_cost for card in cards], nl=1, nobraces=True))
             >>> result = ut.repr2([card.mana_cost2 for card in cards], nl=1, nobraces=True)
             >>> print(result)
-            {UUBBBRR},
-            {(G/W)(G/W)},
-            {(U/P)},
+            <ManaCost {UUBBBRR}>,
+            <ManaCost {1(G/W)(G/W)}>,
+            <ManaCost {(U/P)}>,
+            <ManaCost {(2/W)(2/W)(2/W)}>,
+            <ManaCost {15}>,
         """
         tokens = tokenize_manacost(card.mana_cost)
         return ManaCost([t for t in tokens])
@@ -1154,7 +1158,8 @@ def tokenize_manacost(mana_cost):
         >>> from mtgmonte.mtgobjs import *  # NOQA
         >>> cards = load_cards(['Naya Hushblade', 'Gitaxian Probe', 'Spectral Procession', 'Emrakul, the Aeons Torn'])
         >>> manacost_list = [card.mana_cost for card in cards]
-        >>> print(ut.repr2([tokenize_manacost(mana_cost) for mana_cost in manacost_list], nl=2, nobraces=True))
+        >>> result = (ut.repr2([tokenize_manacost(mana_cost) for mana_cost in manacost_list], nl=2, nobraces=True))
+        >>> print(result)
         [
             ('(R/W)', 'hybrid'),
             ('G', 'colored'),
@@ -1171,7 +1176,7 @@ def tokenize_manacost(mana_cost):
             ('15', 'uncolored'),
         ],
     """
-    colored_pat = ut.named_field('colored', '[' + MANA_SYMBOLS + ']')
+    colored_pat = ut.named_field('colored', '[' + MANA_SYMBOLS + 'C' + ']')
     uncolored_pat = ut.named_field('uncolored', '[0-9]+', )
     life_pat = ut.named_field('life', 'P', )
     phyrexian_pat = ut.named_field('phyrexian', '\([' + MANA_SYMBOLS + ']/P\)')
