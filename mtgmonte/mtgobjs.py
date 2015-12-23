@@ -92,6 +92,8 @@ class ManaBase_(object):
 #@six.add_metaclass(ut.ReloadingMetaclass)
 class Mana(ManaBase_):
     r"""
+    TODO: Generalize to arbitrary cost / currency
+
     Args:
         color (?):
         source (None): (default = None)
@@ -102,19 +104,14 @@ class Mana(ManaBase_):
         python -m mtgmonte.mtgobjs --exec-Mana --show
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from mtgmonte.mtgobjs import *  # NOQA
         >>> m1 = Mana(1)
         >>> m2 = Mana('W')
         >>> m3 = Mana('(W/G)')
         >>> m3 = Mana('(W/P)')
         >>> m4 = Mana(2)
-        >>> print([m1, m2, m3, m4])
-        >>> print(m4.to_tokens())
-        >>> print(m2.to_tokens())
-        >>> print(len(Mana('(W/P)')))
-        >>> print(len(Mana('(2/W)')))
-        >>> print(len(Mana('P')))
+        >>> result = ut.repr2([m1, m2, m3, m4])
     """
     def __init__(self, color, source=None, num=1, type_=None):
         if isinstance(color, Mana):
@@ -137,13 +134,27 @@ class Mana(ManaBase_):
             self.num = num
         self.source = source
 
-    def __len__(self):
+    @property
+    def size(self):
+        """
+        CommandLine:
+            python -m mtgmonte.mtgobjs --test-size
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> result = ut.repr2([Mana('(W/P)').size, Mana('(2/G)').size, Mana('3').size, Mana('G').size, Mana('P').size])
+            >>> print(result)
+            [1, 2, 3, 1, 0]
+        """
         if self.type_ == 'life':
             return 0
         elif self.type_ in ['hybrid', 'phyrexian']:
             return max(len(m) for m in self.alternatives())
         else:
             return self.num
+
+    def __len__(self):
+        return self.size
 
     def alternatives(self):
         if self.type_ in ['hybrid', 'phyrexian']:
@@ -273,12 +284,14 @@ class ManaSet(ManaBase_):
             mana = {RC}
 
         Example:
+            >>> # ENABLE_DOCTEST
             >>> from mtgmonte.mtgobjs import *  # NOQA
             >>> self = ManaSet(['WWURC'])
             >>> other = ManaCost([('W', 'colored'), ('W', 'colored'), ('U', 'colored'), ('1', 'uncolored')])
             >>> mana = self - other
             >>> result = ('mana = %s' % (mana,))
             >>> print(result)
+            mana = {R}
         """
         if isinstance(other, ManaCost):
             colored_cost = other.colored.to_manaset()
@@ -314,16 +327,17 @@ class ManaCost(ManaBase_):
     costs such as hybrid mana, phyrexian mana, delve, and snow mana.
 
     CommandLine:
-        python -m mtgmonte.mtgobjs --exec-ManaCost --show
+        python -m mtgmonte.mtgobjs --test-ManaCost
 
     Example:
+        >>> # ENABLE_DOCTEST
         >>> from mtgmonte.mtgobjs import *  # NOQA
         >>> card = load_cards(['Everlasting Torment', 'Spectral Procession'])[0]
         >>> tokens = tokenize_manacost(card.mana_cost)
-        >>> print('tokens = %r' % (tokens,))
         >>> self = ManaCost(tokens)
-        >>> print(self)
+        >>> print('tokens = %r' % (tokens,))
         >>> print(self.hybrid)
+        >>> result = str(self)
         {2(B/R)}
     """
     def __init__(self, tokens):
