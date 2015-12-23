@@ -53,7 +53,7 @@ def can_cast(spell_sequence, mana_combos):
 
     valid = False
     for mana_combo in mana_combos:
-        print('mana_combo = %r' % (mana_combo,))
+        # print('mana_combo = %r' % (mana_combo,))
         combo2 = reduce(operator.add, mana_combo)
         # TODO: phyrexian / hybrid
         if combined_cost.satisfied_by(combo2):

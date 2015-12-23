@@ -283,7 +283,7 @@ class Player(object):
             python -m mtgmonte.mtgmonte --exec-play_land --cmd
 
         Example:
-            >>> # DISABLE_DOCTEST
+            >>> # ENABLE_DOCTEST
             >>> from mtgmonte.mtgmonte import *  # NOQA
             >>> decklist_text, mydiff = testdata_deck()
             >>> deck = mtgobjs.load_list(decklist_text, mydiff)
@@ -382,7 +382,7 @@ class Player(object):
             python -m mtgmonte --exec-Player.copy --cmd
 
         Example:
-            >>> # DISABLE_DOCTEST
+            >>> # ENABLE_DOCTEST
             >>> from mtgmonte.mtgmonte import *  # NOQA
             >>> decklist_text, mydiff = testdata_deck()
             >>> deck = mtgobjs.load_list(decklist_text, mydiff)
@@ -639,7 +639,7 @@ def goldfish(deck):
         resources['mana_potential'] = mana_potential
         resources['life'] = 20
 
-    player.rrr(False)
+    # player.rrr(False)
 
     player.reset()
     player.initial_draw()
@@ -701,10 +701,22 @@ if __name__ == '__main__':
         set PYTHONPATH=%PYTHONPATH%;C:/Users/joncrall/code/mtgmonte
         python -B %HOME%/code/mtgmonte/mtgmonte.py
         python -B %HOME%/code/mtgmonte/mtgmonte.py --allexamples
+        python -m mtgmonte.mtgmonte
+        python -m mtgmonte.mtgmonte --allexamples
     """
     import multiprocessing
     multiprocessing.freeze_support()  # for win32
     import utool as ut  # NOQA
     res = ut.doctest_funcs()
-    if res[1] == 0:
-        main()
+    # if res[1] == 0:
+    #     main()
+if __name__ == '__main__':
+    r"""
+    CommandLine:
+        python -m mtgmonte.mtgmonte
+        python -m mtgmonte.mtgmonte --allexamples
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
