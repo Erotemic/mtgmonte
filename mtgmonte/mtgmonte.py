@@ -280,7 +280,7 @@ class Player(object):
 
         CommandLine:
             cd ~/code/mtgmonte
-            python -m mtgmonte --exec-play_land --cmd
+            python -m mtgmonte.mtgmonte --exec-play_land --cmd
 
         Example:
             >>> # DISABLE_DOCTEST

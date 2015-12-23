@@ -232,6 +232,9 @@ class ManaSet(ManaBase_):
         body = ''.join([m.get_str() for m in self._manas])
         return '{%s}' % (body,)
 
+    def __len__(self):
+        return sum([len(m) for m in self._manas])
+
     def __getitem__(self, index):
         return self._manas[index]
 
@@ -325,6 +328,8 @@ class ManaCost(ManaBase_):
     r"""
     Represents mana costs of spells and abilities. Can represent conditional
     costs such as hybrid mana, phyrexian mana, delve, and snow mana.
+
+    TODO: Incorporate functionality into ManaSet.
 
     CommandLine:
         python -m mtgmonte.mtgobjs --test-ManaCost

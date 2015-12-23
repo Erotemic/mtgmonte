@@ -25,7 +25,7 @@ def can_cast(spell_sequence, mana_combos):
         python -m mtgmonte.mtgutils --exec-can_cast:1
 
     Setup:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from mtgmonte.mtgutils import *  # NOQA
         >>> from mtgmonte import mtgobjs
         >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Volcanic Island', 'Tundra', 'Plateau']))
@@ -56,7 +56,7 @@ def can_cast(spell_sequence, mana_combos):
         print('mana_combo = %r' % (mana_combo,))
         combo2 = reduce(operator.add, mana_combo)
         # TODO: phyrexian / hybrid
-        if combined_cost.satisfies(combo2):
+        if combined_cost.satisfied_by(combo2):
             valid = True
             break
     return valid
@@ -70,7 +70,7 @@ def possible_mana_combinations(land_list, deck=None):
         python -m mtgmonte.mtgutils --test-possible_mana_combinations
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from mtgmonte.mtgutils import *  # NOQA
         >>> from mtgmonte import mtgobjs
         >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
@@ -126,7 +126,7 @@ def get_max_avail_cmc(land_list, deck=None):
         python -m mtgmonte.mtgutils --test-get_max_avail_cmc
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from mtgmonte.mtgutils import *  # NOQA
         >>> from mtgmonte import mtgobjs
         >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
