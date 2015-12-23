@@ -52,7 +52,6 @@ def can_cast(spell_sequence, mana_combos):
     combined_cost = sum(mana_costs)
 
     valid = False
-    import operator
     for mana_combo in mana_combos:
         print('mana_combo = %r' % (mana_combo,))
         combo2 = reduce(operator.add, mana_combo)
