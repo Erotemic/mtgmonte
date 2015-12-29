@@ -280,6 +280,7 @@ class Player(object):
 
         CommandLine:
             cd ~/code/mtgmonte
+            python -m mtgmonte.mtgmonte --exec-play_land
             python -m mtgmonte.mtgmonte --exec-play_land --cmd
 
         Example:
@@ -710,13 +711,3 @@ if __name__ == '__main__':
     res = ut.doctest_funcs()
     # if res[1] == 0:
     #     main()
-if __name__ == '__main__':
-    r"""
-    CommandLine:
-        python -m mtgmonte.mtgmonte
-        python -m mtgmonte.mtgmonte --allexamples
-    """
-    import multiprocessing
-    multiprocessing.freeze_support()  # for win32
-    import utool as ut  # NOQA
-    ut.doctest_funcs()

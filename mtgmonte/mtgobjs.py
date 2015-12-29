@@ -433,18 +433,6 @@ class ManaCost(ManaBase_):
         return ManaSet(self._to_manas())
 
     @property
-    def colored(self):
-        return ManaCost(self.get_tokens(['colored']))
-
-    @property
-    def uncolored(self):
-        return ManaCost(self.get_tokens(['uncolored']))
-
-    @property
-    def num_uncolored(self):
-        return sum(ut.lmap(int, self.type2_manas.get('uncolored', [])))
-
-    @property
     def alternatives(self):
         r"""
         Args:
@@ -466,12 +454,6 @@ class ManaCost(ManaBase_):
         alt_sets =  [ManaSet(combos) for combos in ut.iprod(*[m.alternatives() for m in self._to_manas()])]
         alt_costs = [ManaCost(ut.flatten([m.to_tokens() for m in mset._manas])) for mset in alt_sets]
         return alt_costs
-        # hybrid_alt_basis = [hcolor[1:-1].split('/') for hcolor, type_ in self.hybrid.get_tokens()]
-        # phyrexian_alt_basis = [pcolor[1:-1].split('/') for pcolor, type_ in self.phyrexian.get_tokens()]
-        # hybrid_combos = [ManaCost(tokenize_manacost(''.join(x))) for x in ut.iprod(*hybrid_alt_basis)]
-        # phyrexian_combos = [ManaCost(tokenize_manacost(''.join(x))) for x in ut.iprod(*phyrexian_alt_basis)]
-        # manacosts_list = list(map(sum, ut.iprod(hybrid_combos, phyrexian_combos, [self.colored], [self.uncolored])))
-        # return manacosts_list
 
     @property
     def hybrid(self):
@@ -481,12 +463,17 @@ class ManaCost(ManaBase_):
     def phyrexian(self):
         return ManaCost([(c, 'phyrexian') for c in self.type2_manas.get('phyrexian', [])])
 
+    @property
+    def colored(self):
+        return ManaCost(self.get_tokens(['colored']))
 
-#@six.add_metaclass(ut.ReloadingMetaclass)
-class ManaPool(ManaSet):
-    """ Only represents real colored and uncolored allocations of mana """
-    def __init__(self, *args, **kwargs):
-        super(self, ManaPool).__init__(*args, **kwargs)
+    @property
+    def uncolored(self):
+        return ManaCost(self.get_tokens(['uncolored']))
+
+    @property
+    def num_uncolored(self):
+        return sum(ut.lmap(int, self.type2_manas.get('uncolored', [])))
 
 
 def ensure_mana_list(manas=None, source=None):

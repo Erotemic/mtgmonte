@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import utool as ut
 import re
+from itertools import combinations
 #import sys
 print, rrr, profile = ut.inject2(__name__, '[rules]')
 
@@ -103,7 +104,6 @@ def mana_generated(block, card, new=False):
                 for x in re.finditer(_fill('num') + ' mana of any color', manatext):
                     numtxt = x.groupdict()['num']
                     num = english_number(numtxt)
-                    from itertools import combinations
                     mana_generated += ['{' + ''.join(comb) + '}' for comb in combinations(COLOR_SYMS, num)]
                 for x in re.finditer(_fill('num') + ' mana of any of the ' +
                                      _fill('refcard') + ' colors', manatext):
@@ -252,8 +252,6 @@ def get_fetched_lands(block, card):
 
 def is_fetchland(block, card):
     return get_fetched_lands(block, card) is not None
-
-
 
 
 if __name__ == '__main__':
