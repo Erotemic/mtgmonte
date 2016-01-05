@@ -581,7 +581,7 @@ class Player(object):
                      for c in card_list]
             if invert:
                 flags = ut.not_list(flags)
-            valid_cards = ut.list_compress(card_list, flags)
+            valid_cards = ut.compress(card_list, flags)
         return valid_cards
 
 
