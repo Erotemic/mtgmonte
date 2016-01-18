@@ -121,7 +121,7 @@ class Mana(ManaBase_):
                 type_ = 'uncolored'
             else:
                 tokens = tokenize_manacost(color)
-                assert len(tokens) == 1, 'mana must be homogeneous. color=%r' % (color,)
+                assert len(tokens) == 1, 'mana must be homogeneous tokens=%r. color=%r' % (tokens, color,)
                 color, type_ = tokens[0]
         self.type_ = type_
         if self.type_ == 'hybrid':
@@ -142,6 +142,7 @@ class Mana(ManaBase_):
 
         Example:
             >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
             >>> result = ut.repr2([Mana('(W/P)').size, Mana('(2/G)').size, Mana('3').size, Mana('G').size, Mana('P').size])
             >>> print(result)
             [1, 2, 3, 1, 0]
@@ -862,6 +863,7 @@ class Card2(Card):
 
         Example:
             >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
             >>> from mtgmonte import mtgobjs
             >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
             >>> cards = mtgobjs.load_cards(['Tundra', 'Ancient Tomb', 'Black Lotus'])
@@ -871,6 +873,7 @@ class Card2(Card):
 
         Example:
             >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
             >>> from mtgmonte import mtgobjs
             >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
             >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb'])
@@ -886,6 +889,7 @@ class Card2(Card):
 
         Example:
             >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
             >>> from mtgmonte import mtgobjs
             >>> deck = mtgobjs.Deck(mtgobjs.load_cards(['Tropical Island', 'Sunken Hollow', 'Island']))
             >>> cards = mtgobjs.load_cards(['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef', 'Ancient Tomb'])
@@ -1114,8 +1118,9 @@ def lookup_card_(cardname):
     #        'exclude_other_colors', 'exclude_other_types', 'flavor', 'format',
     #        'hidesets', 'json', 'name', 'power', 'random', 'rarity',
     #        'reminder', 'rulings', 'set', 'special', 'text', 'tough', 'type']
-    request = SearchRequest({'name': cardname, 'exact': True})
-    cards = CardExtractor(request.url).cards
+    with ut.Timer('Downloading card %s' % (cardname,)):
+        request = SearchRequest({'name': cardname, 'exact': True})
+        cards = CardExtractor(request.url).cards
     double_sided_cards = {
         'Jace, Vryn\'s Prodigy',
     }
@@ -1182,6 +1187,8 @@ def tokenize_manacost(mana_cost):
             ('15', 'uncolored'),
         ],
     """
+    # if mana_cost == '*':
+    #     return [('*', 'special')]
     colored_pat = ut.named_field('colored', '[' + MANA_SYMBOLS + 'C' + ']')
     uncolored_pat = ut.named_field('uncolored', '[0-9]+', )
     life_pat = ut.named_field('life', 'P', )

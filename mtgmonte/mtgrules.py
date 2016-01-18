@@ -50,11 +50,23 @@ def mana_generated(block, card, new=False):
         >>> # DISABLE_DOCTEST
         >>> from mtgmonte.mtgrules import *  # NOQA
         >>> from mtgmonte import mtgobjs
-        >>> testmana_cards = ['Flooded Strand', 'Tundra', 'Island', 'Shivan Reef',
-        >>>                   'Ancient Tomb', 'Black Lotus', 'Mox Lotus',
-        >>>                   'Mox Ruby', 'Mox Diamond', 'Chrome Mox', 'Elvish Mystic',
-        >>>                   'Lion\'s Eye Diamond', 'Grim Monolith', 'Tolarian Academy',
-        >>>                   'City of Brass', 'Mana Confluence', 'Lake of the Dead', 'Snow-Covered Island']
+        >>> testmana_cards = [
+        >>>     'Flooded Strand',
+        >>>     'Tundra',
+        >>>     'Island',
+        >>>     'Shivan Reef',
+        >>>     'Ancient Tomb',
+        >>>     'Black Lotus',
+        >>>     'Mox Lotus',
+        >>>     'Mox Ruby',
+        >>>     'Mox Diamond', 'Chrome Mox',
+        >>>     'Elvish Mystic', 'Lion\'s Eye Diamond',
+        >>>     'Grim Monolith', 'Tolarian Academy',
+        >>>     'City of Brass', 'Mana Confluence',
+        >>>     'Lake of the Dead', 'Snow-Covered Island',
+        >>>     'Reflecting Pool',
+        >>>     'Mirrorpool'
+        >>> ]
         >>> cards = mtgobjs.load_cards(testmana_cards)
         >>> for card in cards:
         >>>     print('\n-----')
