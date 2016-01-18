@@ -20,7 +20,7 @@ def can_cast(spell_sequence, mana_combos):
         bool: valid
 
     CommandLine:
-        python -m mtgmonte.mtgutils --exec-can_cast
+        python -m mtgmonte.mtgutils --test-can_cast
         python -m mtgmonte.mtgutils --exec-can_cast:0
         python -m mtgmonte.mtgutils --exec-can_cast:1
 
