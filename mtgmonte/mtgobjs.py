@@ -132,7 +132,10 @@ class Mana(ManaBase_):
         else:
             self.color = color
             self.num = num
-        self.source = source
+        # FIXME: specifying the source of the mana breaks the cost.
+        # Need to account for this
+        # self.source = source
+        self.source = None
 
     @property
     def size(self):
@@ -203,6 +206,7 @@ class Mana(ManaBase_):
         return COLOR_ORDER[self.color] < COLOR_ORDER[other.color]
 
     def astuple(self):
+        # return (self.color, self.source, self.num)
         return (self.color, self.source, self.num)
 
 
@@ -347,6 +351,8 @@ class ManaCost(ManaBase_):
         {2(B/R)}
     """
     def __init__(self, tokens):
+        if isinstance(tokens, six.string_types):
+            tokens = tokenize_manacost(tokens)
         vals = ut.get_list_column(tokens, 0)
         types = ut.get_list_column(tokens, 1)
         self.type2_manas = dict(ut.group_items(vals, types))
@@ -374,6 +380,14 @@ class ManaCost(ManaBase_):
             >>> card = load_cards(['Spectral Procession'])[0]
             >>> self = card.mana_cost2
             >>> manaset = ManaSet('WWW')
+            >>> result = self.satisfied_by(manaset)
+            >>> print(result)
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from mtgmonte.mtgobjs import *  # NOQA
+            >>> manaset = ManaSet('WURC')
+            >>> self = ManaCost('1RWU')
             >>> result = self.satisfied_by(manaset)
             >>> print(result)
         """
@@ -470,6 +484,7 @@ class ManaCost(ManaBase_):
 
     @property
     def uncolored(self):
+        # TODO: rename to generic
         return ManaCost(self.get_tokens(['uncolored']))
 
     @property

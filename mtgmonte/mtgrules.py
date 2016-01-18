@@ -48,7 +48,7 @@ def mana_generated(block, card, new=False, debug=False):
         python -m mtgmonte.mtgrules --exec-mana_generated --cards "Reflecting Pool" --debug-mana
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from mtgmonte.mtgrules import *  # NOQA
         >>> from mtgmonte import mtgobjs
         >>> testmana_cards_ = [

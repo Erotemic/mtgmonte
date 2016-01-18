@@ -280,7 +280,7 @@ class Player(object):
 
         CommandLine:
             cd ~/code/mtgmonte
-            python -m mtgmonte.mtgmonte --exec-play_land
+            python -m mtgmonte.mtgmonte --test-play_land
             python -m mtgmonte.mtgmonte --exec-play_land --cmd
 
         Example:
@@ -377,13 +377,16 @@ class Player(object):
         player.deck.rrr(False)
 
     def copy(player):
-        """
+        r"""
+
+        FIXME
+
         CommandLine:
             cd ~/code/mtgmonte
-            python -m mtgmonte --exec-Player.copy --cmd
+            python -m mtgmonte.mtgmonte --exec-Player.copy
 
         Example:
-            >>> # ENABLE_DOCTEST
+            >>> # BROKEN_DOCTEST (util hash breaks on the copy)
             >>> from mtgmonte.mtgmonte import *  # NOQA
             >>> decklist_text, mydiff = testdata_deck()
             >>> deck = mtgobjs.load_list(decklist_text, mydiff)
