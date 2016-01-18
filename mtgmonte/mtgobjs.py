@@ -493,8 +493,10 @@ def ensure_mana_list(manas=None, source=None):
     elif isinstance(manas, dict):  # isinstance(manas, ManaSet):
         manas = [mtgobjs.Mana(color, source, num) for color, num in manas.items()]
     elif isinstance(manas, six.string_types):
-        colors = manas.strip('{}')
-        manas = [mtgobjs.Mana(color, source) for color in colors]
+        tokens = tokenize_manacost(manas)
+        manas = [mtgobjs.Mana(color, source, type_=type_) for color, type_ in tokens]
+        # colors = manas.strip('{}')
+        # manas = [mtgobjs.Mana(color, source) for color in colors]
     elif isinstance(manas, (list, tuple)):
         manas = ut.flatten([ensure_mana_list(m) for m in manas])
     else:
@@ -1187,8 +1189,8 @@ def tokenize_manacost(mana_cost):
             ('15', 'uncolored'),
         ],
     """
-    # if mana_cost == '*':
-    #     return [('*', 'special')]
+    if mana_cost == '{*}':
+        return [('*', 'special')]
     colored_pat = ut.named_field('colored', '[' + MANA_SYMBOLS + 'C' + ']')
     uncolored_pat = ut.named_field('uncolored', '[0-9]+', )
     life_pat = ut.named_field('life', 'P', )

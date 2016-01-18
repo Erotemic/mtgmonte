@@ -39,18 +39,19 @@ def is_ability_block(block):
     return ':' in block or (len(block) == 1 and (block in ALL_MANA_SYM))
 
 
-def mana_generated(block, card, new=False):
+def mana_generated(block, card, new=False, debug=False):
     r"""
     Parse the string representation of mana generated
 
     CommandLine:
-        python -m mtgmonte.mtgrules --exec-mana_generated --show
+        python -m mtgmonte.mtgrules --exec-mana_generated
+        python -m mtgmonte.mtgrules --exec-mana_generated --cards "Reflecting Pool" --debug-mana
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from mtgmonte.mtgrules import *  # NOQA
         >>> from mtgmonte import mtgobjs
-        >>> testmana_cards = [
+        >>> testmana_cards_ = [
         >>>     'Flooded Strand',
         >>>     'Tundra',
         >>>     'Island',
@@ -65,16 +66,21 @@ def mana_generated(block, card, new=False):
         >>>     'City of Brass', 'Mana Confluence',
         >>>     'Lake of the Dead', 'Snow-Covered Island',
         >>>     'Reflecting Pool',
-        >>>     'Mirrorpool'
+        >>>     'Mirrorpool', 'Wastes',
+        >>>     # 'Dark Ritual', (dark rit does not have ability blocks)
         >>> ]
+        >>> testmana_cards = ut.get_argval('--cards', type_=list, default=testmana_cards_)
+        >>> DEBUG = ut.get_argflag('--debug-mana')
+        >>> print('testmana_cards = %r' % (testmana_cards,))
         >>> cards = mtgobjs.load_cards(testmana_cards)
         >>> for card in cards:
         >>>     print('\n-----')
         >>>     print(card)
-        >>>     card.printinfo()
+        >>>     if DEBUG:
+        >>>         card.printinfo()
         >>>     for block in card.ability_blocks:
         >>>         #print('block = %r' % (block,))
-        >>>         print(mana_generated(block, card))
+        >>>         print(mana_generated(block, card, debug=DEBUG))
 
     Ignore:
         >>> card = cards[1]
@@ -83,45 +89,59 @@ def mana_generated(block, card, new=False):
         >>> result = mana_generated(block, card)
         >>> print(result)
     """
+    if debug:
+        print('block = %s' % (block,))
     #esc = re.escape
     if block in MANASYM:
         mana_generated = ['{' + block + '}']
     else:
-        #managen_line = '{T}: Add ' + _fill('managen') + ' to your mana pool.'
-        managen_line = 'Add ' + _fill('managen') + ' to your mana pool ?' + _fill('modifier') + '$'
-        managen_line_regexes = [managen_line]
+        # Most mana generaters look like this
+        managen_line1 = 'Add ' + _fill('managen') + ' to your mana pool ?' + _fill('modifier') + '$'
+        # Some (like reflecting pool look like this)
+        managen_line2 = 'Add to your mana pool ' + _fill('managen') + ' mana ?' + _fill('modifier') + '$'
+
+        managen_line_regexes = [managen_line1, managen_line2]
         #,
         #print('block = %r' % (block,))
         #esc('(') + managen_line + esc(')')]
         any_matched = False
         mana_generated = []
-        for managen_line in managen_line_regexes:
+
+        for count, managen_line in enumerate(managen_line_regexes):
             match = re.search(managen_line, block)
-            if match is not None:
+            if match is None:
+                if debug:
+                    print('Did not match managen_line %d' % (count + 1))
+            elif match is not None:
                 any_matched = True
                 manatext = match.groupdict()['managen']
                 modifier = match.groupdict()['modifier']
-                #print('manatext = %r' % (manatext,))
-                #for x in re.finditer(MANASYM, '{[' + ALL_MANA_SYM + ']}+'):
-                #    z = x.groupdict()
-                #    print('z = %r' % (z,))
+
+                if debug:
+                    print(' * Matched managen_line=%r (%d)' % (managen_line, count + 1))
+                    print(' * modifier = %r' % (modifier,))
+                    print(' * manatext = %r' % (manatext,))
+
                 for x in re.finditer(MANASYM, manatext):
                     z = x.groupdict()
-                    #print('z = %r' % (z,))
                     mana_generated += [z['manasym']]
+
                 for x in re.finditer(_fill('num') + ' mana of any one color', manatext):
                     numtxt = x.groupdict()['num']
                     num = english_number(numtxt)
                     mana_generated += ['{' + (c * num) + '}' for c in COLOR_SYMS]
+
                 for x in re.finditer(_fill('num') + ' mana of any color', manatext):
                     numtxt = x.groupdict()['num']
                     num = english_number(numtxt)
                     mana_generated += ['{' + ''.join(comb) + '}' for comb in combinations(COLOR_SYMS, num)]
+
                 for x in re.finditer(_fill('num') + ' mana of any of the ' +
                                      _fill('refcard') + ' colors', manatext):
-                    #print(x.groupdict())
+                    print('Refer card hack')
                     num = english_number(x.groupdict()['num'])
                     refcard = x.groupdict()['refcard']
+                    # chrome mox hack
                     if refcard == 'exiled card\'s':
                         # TODO: Refers to part of the game state
                         # Assume any color for now
@@ -129,27 +149,40 @@ def mana_generated(block, card, new=False):
                     #print('num = %r' % (num,))
                     #print('refcard = %r' % (refcard,))
                     #mana_generated += ['{' + (c * num) + '}' for c in COLOR_SYMS]
+
+                if manatext == 'one':
+                    num = 1
+
                 # Deal with colorless mana
                 for x in re.finditer(COLORLESS_MANASYM, manatext):
                     num = english_number(x.groupdict()['colorless_manasym'].strip('{}'))
                     mana_generated += ['{' + ('C' * num) + '}']
+
+                # Mox lotus hack
                 if manatext.strip('{}') == '∞':
                     num = INF
                     mana_generated += [{'C': '∞'}]
 
+                # Tolarian acadamy hack
                 if modifier == 'for each artifact you control.':
                     #print('modifier = %r' % (modifier,))
                     # TODO: Refers to part of the game state
                     mana_generated = [{c.strip('{}'): '*'} for c in mana_generated]
-                    #{'C': '∞'}]
+                    print('Refer card hack')
+                # Reflecting pool hack
+                if modifier == 'of any type that a land you control could produce.':
+                    mana_generated += ['{' + ('*' * num) + '}']  # for c in COLOR_SYMS]
                     pass
-                    #num = english_number(numtext)
+
         if not any_matched and len(mana_generated) == 0:
             #mana_generated = []
             mana_generated = None
     if mana_generated is not None:
         from mtgmonte import mtgobjs
-        mana_generated = mtgobjs.ManaOption([mtgobjs.ManaSet(manas) for manas in mana_generated])
+        # sources = None
+        sources = [card]
+        options = [mtgobjs.ManaSet(manas, sources) for manas in mana_generated]
+        mana_generated = mtgobjs.ManaOption(options)
     return mana_generated
 
 
