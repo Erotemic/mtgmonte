@@ -626,28 +626,57 @@ class Card2(Card):
 
     def __init__(card, *args, **kwargs):
         card.state = []
+        card.nice_attrs = ['mana_cost', 'state']
         super(Card2, card).__init__(*args, **kwargs)
 
     def copy(card):
         other = copy.deepcopy(card)
         return other
 
-    def __repr__(card):
-        return '<' + card.__str__() + '>'
+    @property
+    def rarity(card):
+        return card.get_rarity()
 
-    def __str__(card):
+    def get_rarity(card, rule='recent'):
+        """
+            >>> from mtgmonte.mtgobjs import *  # NOQA
+            >>> card = lookup_card('Wasteland')
+            >>> card = lookup_card('Wastes')
+            >>> result = card.rarity
+            'Common'
+        """
+        rarity_printings = ut.take_column(card.printings, 1)
+        # Take the most recent (todo; allow for customization of this rule)
+        if rule == 'recent':
+            return rarity_printings[0]
+        elif rule == 'first':
+            return rarity_printings[-1]
+        elif rule == 'greatest':
+            pass
+        elif rule == 'lowest':
+            pass
+
+    def __nice__(card):
         if not hasattr(card, 'state'):
             card.state = []
-        if card.mana_cost:
-            body = card.name + ' (' + card.mana_cost + ')'
-        else:
-            body = card.name
-        if len(card.state) > 0:
+
+        body = card.name
+        if 'mana_cost' in card.nice_attrs and card.mana_cost:
+            body += ' (' + card.mana_cost + ')'
+        if 'state' in card.nice_attrs and len(card.state) > 0:
             state_nice =  {
                 # 'tapped': TAPPED
             }
             body += ' ' + ut.repr2([state_nice.get(s, s) for s in card.state])
+        if 'rarity' in card.nice_attrs and card.rarity:
+            body += ' ' + card.rarity
         return body
+
+    def __repr__(card):
+        return '<' + card.__nice__() + '>'
+
+    def __str__(card):
+        return card.__nice__()
 
     def __getstate__(card):
         return card.__dict__
@@ -1124,8 +1153,11 @@ def load_list(decklist_text, mydiff):
 
 
 #@ut.memoize
-@ut.cached_func('lookup_card', appname='mtgmonte_', key_argx=[0], verbose=False)
+@ut.cached_func('lookup_card_v2', appname='mtgmonte_', key_argx=[0], verbose=False)
 def lookup_card_(cardname):
+    """
+    cardname = 'Wasteland'
+    """
     print('Lookup cardname = %r' % (cardname,))
     from mtglib.gatherer_request import SearchRequest
     from mtglib.card_extractor import CardExtractor
@@ -1137,7 +1169,8 @@ def lookup_card_(cardname):
     #        'reminder', 'rulings', 'set', 'special', 'text', 'tough', 'type']
     with ut.Timer('Downloading card %s' % (cardname,)):
         request = SearchRequest({'name': cardname, 'exact': True})
-        cards = CardExtractor(request.url).cards
+        card_source = request.url
+        cards = CardExtractor(card_source).cards
     double_sided_cards = {
         'Jace, Vryn\'s Prodigy',
     }
