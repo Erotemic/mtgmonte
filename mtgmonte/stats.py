@@ -1,6 +1,56 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function, unicode_literals
+# -*- coding: utf-8 -*- from __future__ import absolute_import, division, print_function, unicode_literals
 import utool as ut
+
+
+def card_combos():
+    import plottool as pt  # NOQA
+    from scipy.stats import hypergeom
+
+    N = pop_size = 60  # cards in deck  # NOQA
+    K = num_success = 4  # number of creatures in deck  # NOQA
+    n = sample_size = 7  # cards in opening hand  # NOQA
+    nA = 4
+    nB = 4
+    nLands = 24
+
+    def combo_in_top(n):
+        prbA = hypergeom(N, nA, n)
+        prbB = hypergeom(N, nB, n)
+        prbL = hypergeom(N, nLands, n)
+
+        # cdf is probabiliyt of k or fewer successes
+        # prb.cdf(0)
+
+        p_L_eq0 = prbL.cdf(0)
+        p_L_le1 = prbL.cdf(1)
+        p_L_le4 = prbL.cdf(4)
+        # having between 2 to 4 lands
+        p_L_ge2_le4 = p_L_le4 - p_L_le1
+        p_keepable = p_L_ge2_le4
+
+        # probability of having none
+        p_A_eq0 = prbA.cdf(0)
+        p_B_eq0 = prbB.cdf(0)
+        # probability of having at least 1
+        p_A_ge1 = 1 - p_A_eq0
+        p_B_ge1 = 1 - p_B_eq0
+        # http://math.stackexchange.com/questions/72589/calculating-probability-of-at-least-one-event-occurring
+
+        def p_not_any_fail(p_A_fail, p_B_fail):
+            p_and = (1 - p_A_fail) + (1 - p_B_fail) - (1 - p_A_fail * p_B_fail)
+            return p_and
+
+        p_and = (1 - p_A_eq0) + (1 - p_B_eq0) - (1 - p_A_eq0 * p_B_eq0)
+        p_and = p_A_eq0 * p_B_eq0 - p_A_eq0 - p_B_eq0 + 1
+
+        p_nor = p_A_eq0 * p_B_eq0  # chance_of_neither_combo_card
+        p_or = 1 - p_nor  # chance of either card
+        p_and = p_A_ge1 + p_B_ge1 - p_or  # chance of both cards
+        p_xor = p_or - p_and  # change of either A or B but not both
+
+        print('p_and = %r' % (p_and,))
+
+        p_not_any_fail(1 - p_and, 1 - p_keepable)
 
 
 def coco_stats():
