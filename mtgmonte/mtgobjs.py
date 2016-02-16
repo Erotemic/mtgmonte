@@ -1064,7 +1064,7 @@ class CardGroup(object):
         infohist = [(key, [(vals[n], n) for n in vals]) for key, vals in infohist1]
         # list_ = [six.text_type(c) for c in group.cards]
         # dict_ = ut.dict_hist(list_)
-        # ulist_ = ut.unique_keep_order(list_)
+        # ulist_ = ut.unique_ordered(list_)
         # infohist = [(dict_[item], item) for item in ulist_]
         # ut.embed()
         return infohist
