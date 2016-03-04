@@ -53,6 +53,51 @@ def card_combos():
         p_not_any_fail(1 - p_and, 1 - p_keepable)
 
 
+def land_stats():
+    """
+    http://stattrek.com/online-calculator/hypergeometric.aspx
+
+    CommandLine:
+        python -m mtgmonte.stats --exec-land_stats --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from mtgmonte.stats import *  # NOQA
+        >>> result = land_stats()
+        >>> print(result)
+        >>> ut.show_if_requested()
+    """
+    import plottool as pt
+    from scipy.stats import hypergeom
+    N = pop_size = 60  # cards in deck  # NOQA
+    # K = num_success = 25  # lands in deck  # NOQA
+    n = sample_size = 6  # cards seen by coco  # NOQA
+
+    # prob of at least that many hits
+
+    def prob_ge(k, prb):
+        return (1 - prb.cdf(k)) + prb.pmf(k)  # P(X >= k)
+
+    pt.ensure_pylab_qt4()
+
+    N = deck_size = 60  # NOQA
+    land_range = (24, 27 + 1)
+
+    # N = deck_size = 40  # NOQA
+    # land_range = (15, 18 + 1)
+
+    xdata = range(0, 15)  # turn
+    ydata_list = [[hypergeom(N, K, x + 7).expect() for x in xdata] for K in range(*land_range)]
+    spread_list = [[hypergeom(N, K, x + 7).std() for x in xdata] for K in range(*land_range)]
+    # spread_list = None
+    import numpy as np
+    label_list = ['%d lands' % (K,) for K in range(*land_range)]
+    pt.multi_plot(xdata, ydata_list, spread_list=spread_list, label_list=label_list, num_xticks=15, num_yticks=13, fnum=1)
+    min_lands_acceptable = np.minimum(np.array(xdata), [1, 2, 3, 4, 5, 6] + [6] * (len(xdata) - 6))
+    pt.multi_plot(xdata, [min_lands_acceptable, (np.array(xdata) ** .9) * .5 + 4],
+                  label_list=['minimum ok', 'maximum ok'], num_xticks=15, num_yticks=13, fnum=1, marker='o')
+
+
 def coco_stats():
     """
     http://stattrek.com/online-calculator/hypergeometric.aspx
