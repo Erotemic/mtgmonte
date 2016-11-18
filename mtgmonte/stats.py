@@ -2,6 +2,88 @@
 import utool as ut
 
 
+def shadowform_probability():
+    """ its hearthstone, but whatev
+
+    probability of
+    raza + no shadowform on turn 5 +
+
+    probability of
+    raza + shadowform on turn 5 +
+
+    probability of
+    kazakus turn 4, raza turn 5, + no shadowform
+
+    """
+    from scipy.stats import hypergeom
+
+    def p_badstuff_shadowform(turn=5, hand_size=3):
+        deck_size = 30
+        num_shadowform = 2
+
+        def prob_nohave_card_never_mulled(copies=2, hand_size=3):
+            deck_size = 30
+            prb = hypergeom(deck_size, copies, hand_size)
+            # P(initial_miss)
+            p_none_premul = prb.cdf(0)
+
+            # GIVEN that we mul our first 3 what is prob we still are unlucky
+            # P(miss_turn0 | initial_miss)
+            prb = hypergeom(deck_size - hand_size, copies, hand_size)
+            p_none_in_mul = prb.cdf(0)
+            # TODO: add constraints about 2 drops
+            #  P(miss_turn0) = P(miss_turn0 | initial_miss) *  P(initial_miss)
+            p_none_at_start = p_none_in_mul * p_none_premul
+            return p_none_at_start
+
+        def prob_nohave_card_always_mulled(copies=2, hand_size=3):
+            # probability of getting the card initially
+            p_none_premul = hypergeom(deck_size, copies, hand_size).cdf(0)
+            # probability of getting the card if everything is thrown away
+            # (TODO: factor in the probability that you need to keep something)
+            # for now its fine because if we keep shadowform the end calculation is fine
+            p_nohave_postmul_given_nohave = hypergeom(deck_size - hand_size, copies, hand_size).cdf(0)
+            # not necessary, but it shows the theory
+            p_nohave_postmul_given_had = 1
+            p_nohave_turn0 = p_nohave_postmul_given_nohave * p_none_premul + (1 - p_none_premul) * p_nohave_postmul_given_had
+            return p_nohave_turn0
+
+        def prob_nohave_by_turn(p_none_turn0, turn, copies, hand_size):
+            # P(miss_turnN | miss_mul)
+            p_none_turnN_given_mulmis = hypergeom(deck_size - hand_size, copies, turn).cdf(0)
+            # P(miss_turnN) = P(miss_turnN | miss_mul) P(miss_mul)
+            p_none_turnN = p_none_turnN_given_mulmis * p_none_turn0
+            return p_none_turnN
+
+        p_no_shadowform_on_turn0 = prob_nohave_card_never_mulled(copies=num_shadowform,
+                                                                 hand_size=hand_size)
+        no_shadowform_turnN = prob_nohave_by_turn(p_no_shadowform_on_turn0,
+                                                  turn, num_shadowform,
+                                                  hand_size)
+
+        # Assume you always mul raza
+        p_noraza_initial = prob_nohave_card_always_mulled(copies=1, hand_size=hand_size)
+        p_noraza_turnN = prob_nohave_by_turn(p_noraza_initial, turn, copies=1,
+                                             hand_size=hand_size)
+        p_raza_turnN = 1 - p_noraza_turnN
+
+        # probability that you have raza and no shadowform by turn 5
+        p_raza_and_noshadowform_turnN = p_raza_turnN * no_shadowform_turnN
+        return p_raza_and_noshadowform_turnN
+
+    import plottool as pt  # NOQA
+    turns = list(range(0, 26))
+    probs = [p_badstuff_shadowform(turn, hand_size=3) for turn in turns]
+    pt.plot(turns, probs, label='on play')
+    probs = [p_badstuff_shadowform(turn, hand_size=4) for turn in turns]
+    pt.plot(turns, probs, label='with coin')
+    pt.set_xlabel('turn')
+    pt.set_ylabel('probability')
+    pt.set_title('Probability of Having Raza without a Shadowform')
+    pt.legend()
+    pt.gca().set_ylim(0, 1)
+
+
 def card_combos():
     import plottool as pt  # NOQA
     from scipy.stats import hypergeom
